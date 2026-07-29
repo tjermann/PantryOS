@@ -1,0 +1,72 @@
+<div style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto; color: #2b2b2b;">
+  <h1 style="font-size: 22px; border-bottom: 2px solid #c96f4a; padding-bottom: 8px;">
+    This week's dinners — {{ week_label }}
+  </h1>
+
+  {% if long_lead_notes %}
+  <div style="background: #fdf3e7; border-left: 4px solid #c96f4a; padding: 10px 14px; margin: 14px 0;">
+    <strong>Start ahead:</strong>
+    <ul style="margin: 6px 0 0 18px; padding: 0;">
+      {% for note in long_lead_notes %}<li>{{ note }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <tr style="text-align: left; border-bottom: 1px solid #ccc;">
+      <th style="padding: 6px 8px;">Day</th><th style="padding: 6px 8px;">Dinner</th><th style="padding: 6px 8px;">Notes</th>
+    </tr>
+    {% for e in entries %}
+    <tr style="border-bottom: 1px solid #eee; vertical-align: top;">
+      <td style="padding: 6px 8px; white-space: nowrap;">{{ e.day }}</td>
+      <td style="padding: 6px 8px;"><strong>{{ e.title }}</strong>
+        {% if e.time_label %}<br><span style="color:#777;">{{ e.time_label }}</span>{% endif %}</td>
+      <td style="padding: 6px 8px;">{{ e.rationale }}
+        {% for h in e.handling %}<br><em>{{ h }}</em>{% endfor %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% if perishable_notes %}
+  <p style="font-size: 13px; color: #555;"><strong>No-waste pairings:</strong> {{ perishable_notes }}</p>
+  {% endif %}
+
+  <h2 style="font-size: 18px; margin-top: 26px;">Grocery list</h2>
+  {% if budget_line %}<p style="font-size: 13px;">{{ budget_line }}</p>{% endif %}
+  {% for section in grocery_sections %}
+  <h3 style="font-size: 14px; margin: 12px 0 4px; color: #c96f4a; text-transform: uppercase; letter-spacing: .05em;">{{ section.label }}</h3>
+  <ul style="margin: 0 0 0 18px; padding: 0; font-size: 14px;">
+    {% for line in section.lines %}
+    <li>{{ line.text }}{% if line.tag %} <span style="color:#999; font-size: 12px;">({{ line.tag }})</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+
+  {% if carts %}
+  <h2 style="font-size: 18px; margin-top: 26px;">Your carts</h2>
+  {% for cart in carts %}
+  <div style="border: 1px solid #ddd; border-radius: 6px; padding: 12px 14px; margin: 10px 0;">
+    <strong>{{ cart.store }}</strong> — {{ cart.summary }}
+    {% if cart.not_found %}
+    <div style="font-size: 13px; color: #a33; margin-top: 6px;">Add by hand: {{ cart.not_found | join(', ') }}</div>
+    {% endif %}
+    {% if cart.url %}
+    <div style="margin-top: 10px;">
+      <a href="{{ cart.url }}" style="background:#c96f4a; color:#fff; padding:8px 14px; border-radius:4px; text-decoration:none;">Review &amp; submit your order →</a>
+    </div>
+    {% elif cart.action_needed %}
+    <div style="font-size: 13px; color: #a33; margin-top: 6px;">{{ cart.action_needed }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if feedback_url %}
+  <p style="margin-top: 26px; font-size: 14px;">
+    <a href="{{ feedback_url }}" style="color:#c96f4a;">Rate last week's dinners &amp; tweak preferences →</a>
+  </p>
+  {% endif %}
+  <p style="font-size: 12px; color: #999; margin-top: 20px;">
+    Orders are never submitted automatically — you review and pay at the store. Reply isn't monitored.
+  </p>
+</div>

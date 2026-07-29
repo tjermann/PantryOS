@@ -10,3 +10,11 @@ coverage/
 .DS_Store
 ios/
 android/
+
+# Python service
+service/.venv/
+service/users/
+service/var/
+__pycache__/
+*.egg-info/
+.pytest_cache/

@@ -1,0 +1,27 @@
+# Generic "search box → first plausible result → add" selector pack.
+# Copy this file to <store-id>.yaml under the user's directory (or edit the
+# packaged copy) and fill in the store's URLs and selectors.
+home_url: ""
+login_url: ""
+cart_url: ""
+signin_marker:
+  - "form[action*='login']"
+  - "input[type='password']"
+account_marker:
+  - "[href*='account']"
+search_input:
+  - "input[type='search']"
+  - "input[name='search']"
+  - "input[placeholder*='Search' i]"
+result_card:
+  - "[class*='product-card']"
+  - "[class*='product-tile']"
+  - "[data-testid*='product']"
+result_title:
+  - "[class*='title']"
+  - "h2"
+  - "h3"
+add_button:
+  - "button:has-text('Add to cart')"
+  - "button:has-text('Add')"
+  - "[data-testid*='add']"

@@ -1,8 +1,15 @@
 # Meal Planner — AI-assisted family meal planning & grocery ordering
 
-Cross-platform app (Expo/React Native + TypeScript, Supabase backend) generalizing a
-prompt-driven family meal-planning system. Users bring their own Anthropic API key for
-AI planning; the app is fully functional without one (manual mode).
+**Current product: `service/` — a self-hosted Python cron service.** Anyone clones the
+repo, runs the setup questionnaire, supplies their own credentials (Anthropic API key,
+Gmail app password, store logins via headed browser), and gets weekly Claude-planned
+menus, grocery lists, Playwright-preloaded carts (human always submits), and emails.
+Household members give feedback through signed web links (`mealplanner serve`).
+See `service/README.md` for the quickstart; tests: `service/.venv/bin/python -m pytest`.
+
+The TypeScript monorepo below is the SHELVED mobile-app iteration. `packages/engine`
+remains the reference implementation the Python core was ported from — keep the two in
+sync if engine logic changes.
 
 ## Layout
 

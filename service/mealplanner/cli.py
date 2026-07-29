@@ -1,0 +1,275 @@
+"""mealplanner CLI — the deployer's interface. Household members use the web
+UI (`mealplanner serve`) instead."""
+
+from __future__ import annotations
+
+import fcntl
+import sys
+from datetime import date
+from pathlib import Path
+
+import typer
+
+from .config import list_users, load_user_config, user_dir
+
+app = typer.Typer(help="Self-hosted meal planning: Claude plans, you approve.")
+
+
+def _users(user: str | None, all_users: bool) -> list[str]:
+    if all_users:
+        users = list_users()
+        if not users:
+            typer.echo("No users found. Run: mealplanner setup")
+            raise typer.Exit(1)
+        return users
+    if not user:
+        typer.echo("Pass --user <name> or --all-users")
+        raise typer.Exit(1)
+    return [user]
+
+
+def _locked_run(user: str, fn) -> int:
+    lock_path = user_dir(user) / ".lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f"[{user}] another run is in progress; skipping")
+            return 0
+        return fn(user)
+
+
+def _run_for_each(users: list[str], fn) -> None:
+    """Per-user isolation: one user's failure doesn't starve the rest."""
+    failures = 0
+    for u in users:
+        try:
+            failures += 1 if _locked_run(u, fn) != 0 else 0
+        except Exception as exc:
+            print(f"[{u}] FAILED: {exc}", file=sys.stderr)
+            failures += 1
+    if failures:
+        raise typer.Exit(1)
+
+
+@app.command()
+def setup(user: str = typer.Option(None, help="Existing user to re-run setup for")):
+    """Interactive questionnaire: household, diets, stores, budget, email."""
+    from .setup_wizard import run_wizard
+
+    run_wizard(user)
+
+
+@app.command("run-weekly")
+def run_weekly_cmd(
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the email, send nothing"),
+    skip_carts: bool = typer.Option(False, "--skip-carts"),
+    force: bool = typer.Option(False, "--force", help="Run even if today isn't planning day"),
+):
+    """Plan the week, build the list, load carts, email the household."""
+    from .jobs.weekly import run_weekly
+
+    _run_for_each(
+        _users(user, all_users),
+        lambda u: run_weekly(u, dry_run=dry_run, skip_carts=skip_carts, force=force),
+    )
+
+
+@app.command("run-restock")
+def run_restock_cmd(
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+):
+    """Mid-week restock reminder email."""
+    from .jobs.restock import run_restock
+
+    _run_for_each(_users(user, all_users), lambda u: run_restock(u, dry_run=dry_run))
+
+
+@app.command("run-tonight")
+def run_tonight_cmd(
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+):
+    """Tonight's dinner email with start-by time and cook notes."""
+    from .jobs.tonight import run_tonight
+
+    _run_for_each(_users(user, all_users), lambda u: run_tonight(u, dry_run=dry_run))
+
+
+@app.command()
+def login(
+    user: str = typer.Option(...), store: str = typer.Option(...),
+):
+    """One-time store login in a visible browser (your credentials never touch us)."""
+    from .carts.session import interactive_login
+
+    raise typer.Exit(interactive_login(user, store))
+
+
+@app.command("import-recipes")
+def import_recipes_cmd(
+    user: str = typer.Option(...),
+    force: bool = typer.Option(False, "--force", help="Re-parse even if unchanged"),
+):
+    """Parse the recipe library into structured data (one Claude call per recipe)."""
+    from .llm.client import client_for_user
+    from .paths import parsed_cache_dir
+    from .recipes.importer import import_entry
+    from .recipes.library import load_library
+
+    config = load_user_config(user)
+    client = client_for_user(config)
+    parsed_dir = parsed_cache_dir(user)
+    entries = load_library(Path(config.recipe_library))
+    counts: dict[str, int] = {}
+    for i, entry in enumerate(entries, 1):
+        outcome = import_entry(client, entry, parsed_dir, model=config.model, force=force)
+        counts[outcome] = counts.get(outcome, 0) + 1
+        typer.echo(f"[{i}/{len(entries)}] {entry.recipe.title}: {outcome}")
+    typer.echo(f"Done: {counts}")
+
+
+@app.command()
+def rate(
+    user: str = typer.Option(...),
+    recipe: str = typer.Argument(..., help="Recipe title (fuzzy-matched)"),
+    score: int = typer.Argument(..., min=1, max=5),
+    real_time: int = typer.Option(None, "--real-time", help="Measured minutes, start to eating"),
+    note: str = typer.Option(None, "--note"),
+):
+    """Record a rating (and optionally the real cook time + a note)."""
+    slug = _resolve_slug(user, recipe)
+    from .state.store import StateStore
+
+    state = StateStore(user_dir(user)).record_rating(
+        slug, score=score, real_time_min=real_time, note=note, made_on=date.today()
+    )
+    typer.echo(f"{slug}: rated {score}, lifecycle now {state.lifecycle}")
+
+
+@app.command()
+def mark(
+    user: str = typer.Option(...),
+    recipe: str = typer.Argument(...),
+    lifecycle: str = typer.Argument(..., help="to_try | probation | keeper | cut"),
+):
+    """Set a recipe's lifecycle. 'cut' keeps it in the library but never plans it."""
+    if lifecycle not in ("to_try", "probation", "keeper", "cut"):
+        raise typer.BadParameter("lifecycle must be to_try, probation, keeper, or cut")
+    slug = _resolve_slug(user, recipe)
+    from .state.store import StateStore
+
+    StateStore(user_dir(user)).set_lifecycle(slug, lifecycle)
+    typer.echo(f"{slug}: {lifecycle}")
+
+
+@app.command("review-orders")
+def review_orders_cmd(
+    user: str = typer.Option(...),
+    adjust: str = typer.Option(None, "--adjust", help="Free-text note on the latest order"),
+    learn: str = typer.Option(None, "--learn", help="Add a standing learning for future planning"),
+):
+    """Show recent orders; record adjustments that feed future planning."""
+    from .state.store import StateStore
+
+    store = StateStore(user_dir(user))
+    orders = store.load_orders()
+    if not orders:
+        typer.echo("No orders yet.")
+        raise typer.Exit(0)
+    for week, order in orders:
+        carts = order.get("carts") or []
+        summary = "; ".join(f"{c.get('store')}: {c.get('summary')}" for c in carts) or "no carts"
+        n = len(order.get("grocery_lines") or [])
+        review = f" | review: {order.get('review')}" if order.get("review") else ""
+        typer.echo(f"{week}: {n} items | {summary}{review}")
+    if adjust:
+        week, order = orders[-1]
+        order["review"] = f"{order.get('review') or ''}\n{adjust}".strip()
+        store.save_order(week, order)
+        typer.echo(f"Recorded on {week}: {adjust}")
+    if learn:
+        store.append_learning(learn)
+        typer.echo("Added to standing learnings (used in future planning).")
+
+
+@app.command("validate-config")
+def validate_config_cmd(
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+):
+    """Validate config files and recipe-library paths."""
+    ok = True
+    for u in _users(user, all_users):
+        try:
+            config = load_user_config(u)
+            library = Path(config.recipe_library)
+            missing = [] if (library / "index.csv").exists() else ["recipe library index.csv"]
+            if missing:
+                typer.echo(f"[{u}] MISSING: {', '.join(missing)}")
+                ok = False
+            else:
+                typer.echo(f"[{u}] ok ({len(config.stores)} stores, "
+                           f"{len(config.household.people)} people)")
+        except Exception as exc:
+            typer.echo(f"[{u}] INVALID: {exc}")
+            ok = False
+    raise typer.Exit(0 if ok else 1)
+
+
+@app.command("send-test-email")
+def send_test_email_cmd(user: str = typer.Option(...)):
+    """Verify SMTP credentials by sending a test message."""
+    from .emailer.sender import send_email
+
+    config = load_user_config(user)
+    send_email(
+        to=config.email.to,
+        subject="Meal planner test email",
+        text="SMTP is working. You're all set.",
+        html="<p>SMTP is working. You're all set.</p>",
+    )
+    typer.echo(f"Sent to {', '.join(config.email.to)}")
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("0.0.0.0"),
+    port: int = typer.Option(8321),
+):
+    """Run the household feedback web UI (ratings, notes, preferences)."""
+    import uvicorn
+
+    from .web.app import create_app
+
+    uvicorn.run(create_app(), host=host, port=port)
+
+
+def _resolve_slug(user: str, query: str) -> str:
+    """Fuzzy-match a title against the user's library."""
+    from .recipes.library import load_library, slugify
+
+    config = load_user_config(user)
+    entries = load_library(Path(config.recipe_library))
+    q = slugify(query)
+    exact = [e for e in entries if e.recipe.id == q]
+    if exact:
+        return exact[0].recipe.id
+    partial = [e for e in entries if q in e.recipe.id]
+    if len(partial) == 1:
+        return partial[0].recipe.id
+    if not partial:
+        typer.echo(f"No recipe matching '{query}'")
+        raise typer.Exit(1)
+    typer.echo(f"Ambiguous — matches: {', '.join(e.recipe.id for e in partial[:8])}")
+    raise typer.Exit(1)
+
+
+def main() -> None:
+    app()
+
+
+if __name__ == "__main__":
+    main()

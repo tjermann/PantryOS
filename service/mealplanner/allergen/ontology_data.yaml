@@ -1,0 +1,101 @@
+# Canonical items — starter set covering the reference library's core
+# ingredients plus the classic false-positive traps. Membership in an allergen
+# class is decided ONLY by `allergens`; `not_allergens` documents deliberate
+# negative assertions so a regression to substring matching is caught in review.
+items:
+  # --- dairy and its traps ---
+  - { id: milk, name: Whole milk, aliases: [milk, "2% milk", skim milk], store_section: dairy, perishability: perishable, allergens: [dairy], typical_price_cents: 349 }
+  - { id: heavy-cream, name: Heavy cream, aliases: [cream, whipping cream, heavy whipping cream], store_section: dairy, perishability: perishable, allergens: [dairy], typical_price_cents: 449 }
+  - { id: butter, name: Butter, aliases: [unsalted butter, salted butter], store_section: dairy, perishability: perishable, allergens: [dairy], typical_price_cents: 499 }
+  - { id: yogurt, name: Plain yogurt, aliases: [greek yogurt, whole-milk yogurt], store_section: dairy, perishability: perishable, allergens: [dairy], typical_price_cents: 429 }
+  - { id: sour-cream, name: Sour cream, aliases: [], store_section: dairy, perishability: perishable, allergens: [dairy], typical_price_cents: 299 }
+  - { id: parmesan, name: Parmesan, aliases: [parmigiano-reggiano, grated parmesan, parmesan cheese], store_section: dairy, perishability: stable, allergens: [dairy], typical_price_cents: 699 }
+  - { id: pecorino, name: Pecorino Romano, aliases: [pecorino], store_section: dairy, perishability: stable, allergens: [dairy], typical_price_cents: 749 }
+  - { id: feta, name: Feta, aliases: [feta cheese], store_section: dairy, perishability: perishable, allergens: [dairy], typical_price_cents: 549 }
+  - { id: mozzarella, name: Mozzarella, aliases: [fresh mozzarella], store_section: dairy, perishability: perishable, allergens: [dairy], typical_price_cents: 549 }
+  - { id: cheddar, name: Cheddar, aliases: [cheddar cheese, sharp cheddar], store_section: dairy, perishability: stable, allergens: [dairy], typical_price_cents: 499 }
+  - { id: coconut-milk, name: Coconut milk, aliases: [canned coconut milk, full-fat coconut milk], store_section: pantry, perishability: stable, allergens: [], not_allergens: [dairy, tree_nut], typical_price_cents: 249 }
+  - { id: cream-of-tartar, name: Cream of tartar, aliases: [], store_section: pantry, perishability: stable, allergens: [], not_allergens: [dairy], typical_price_cents: 349 }
+  - { id: oat-milk, name: Oat milk, aliases: [], store_section: dairy, perishability: perishable, allergens: [], not_allergens: [dairy], typical_price_cents: 449 }
+  - { id: coconut-cream, name: Coconut cream, aliases: [], store_section: pantry, perishability: stable, allergens: [], not_allergens: [dairy, tree_nut], typical_price_cents: 299 }
+
+  # --- gluten and traps ---
+  - { id: ap-flour, name: All-purpose flour, aliases: [flour], store_section: pantry, perishability: stable, allergens: [gluten], typical_price_cents: 399 }
+  - { id: spaghetti, name: Spaghetti, aliases: [], store_section: pantry, perishability: stable, allergens: [gluten], typical_price_cents: 199 }
+  - { id: orecchiette, name: Orecchiette, aliases: [], store_section: pantry, perishability: stable, allergens: [gluten], typical_price_cents: 299 }
+  - { id: soy-sauce, name: Soy sauce, aliases: [shoyu], store_section: pantry, perishability: stable, allergens: [gluten, soy], typical_price_cents: 349 }
+  - { id: panko, name: Panko breadcrumbs, aliases: [breadcrumbs], store_section: pantry, perishability: stable, allergens: [gluten], typical_price_cents: 349 }
+  - { id: tortellini, name: Cheese tortellini, aliases: [], store_section: frozen, perishability: stable, allergens: [gluten, dairy, egg], typical_price_cents: 599 }
+  - { id: buckwheat, name: Buckwheat groats, aliases: [buckwheat], store_section: pantry, perishability: stable, allergens: [], not_allergens: [gluten], typical_price_cents: 499 }
+  - { id: rice-noodles, name: Rice noodles, aliases: [pad thai noodles, flat rice noodles], store_section: pantry, perishability: stable, allergens: [], not_allergens: [gluten], typical_price_cents: 349 }
+  - { id: cornstarch, name: Cornstarch, aliases: [corn starch], store_section: pantry, perishability: stable, allergens: [], not_allergens: [gluten], typical_price_cents: 249 }
+  - { id: tamari, name: Tamari (gluten-free), aliases: [tamari], store_section: pantry, perishability: stable, allergens: [soy], not_allergens: [gluten], typical_price_cents: 449 }
+
+  # --- nuts and traps ---
+  - { id: peanut, name: Peanuts, aliases: [roasted peanuts, dry-roasted peanuts], store_section: pantry, perishability: stable, allergens: [peanut], typical_price_cents: 399 }
+  - { id: peanut-butter, name: Peanut butter, aliases: [], store_section: pantry, perishability: stable, allergens: [peanut], typical_price_cents: 449 }
+  - { id: almond, name: Almonds, aliases: [sliced almonds, slivered almonds], store_section: pantry, perishability: stable, allergens: [tree_nut], typical_price_cents: 599 }
+  - { id: cashew, name: Cashews, aliases: [roasted cashews], store_section: pantry, perishability: stable, allergens: [tree_nut], typical_price_cents: 649 }
+  - { id: pine-nuts, name: Pine nuts, aliases: [pignoli], store_section: pantry, perishability: stable, allergens: [tree_nut], typical_price_cents: 899 }
+  - { id: water-chestnut, name: Water chestnuts, aliases: [canned water chestnuts], store_section: pantry, perishability: stable, allergens: [], not_allergens: [tree_nut], typical_price_cents: 199 }
+  - { id: nutmeg, name: Nutmeg, aliases: [ground nutmeg], store_section: pantry, perishability: stable, allergens: [], not_allergens: [tree_nut], typical_price_cents: 449 }
+
+  # --- seafood ---
+  - { id: shrimp, name: Shrimp, aliases: [large shrimp, peeled shrimp], store_section: meat_seafood, perishability: perishable, allergens: [shellfish], typical_price_cents: 1299 }
+  - { id: salmon, name: Salmon fillets, aliases: [salmon, salmon fillet], store_section: meat_seafood, perishability: perishable, allergens: [fish], typical_price_cents: 1499 }
+  - { id: cod, name: Cod fillets, aliases: [cod, white fish], store_section: meat_seafood, perishability: perishable, allergens: [fish], typical_price_cents: 1199 }
+  - { id: tuna-canned, name: Canned tuna, aliases: [tuna, oil-packed tuna], store_section: pantry, perishability: stable, allergens: [fish], typical_price_cents: 299 }
+  - { id: fish-sauce, name: Fish sauce, aliases: [nam pla], store_section: pantry, perishability: stable, allergens: [fish], typical_price_cents: 399 }
+
+  # --- proteins ---
+  - { id: chicken-thigh, name: Chicken thighs, aliases: [boneless chicken thighs, chicken thigh], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 899 }
+  - { id: chicken-breast, name: Chicken breasts, aliases: [boneless skinless chicken breasts, chicken breast], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 999 }
+  - { id: ground-beef, name: Ground beef, aliases: [85% lean ground beef], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 799 }
+  - { id: pork-chop, name: Pork chops, aliases: [bone-in pork chops], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 899 }
+  - { id: italian-sausage, name: Italian sausage, aliases: [sweet italian sausage, hot italian sausage], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 699 }
+  - { id: bacon, name: Bacon, aliases: [thick-cut bacon], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 799 }
+  - { id: tofu, name: Firm tofu, aliases: [extra-firm tofu, tofu], store_section: produce, perishability: perishable, allergens: [soy], typical_price_cents: 299 }
+  - { id: eggs, name: Eggs, aliases: [large eggs, egg], store_section: dairy, perishability: perishable, allergens: [egg], typical_price_cents: 449 }
+  - { id: chickpeas, name: Canned chickpeas, aliases: [chickpeas, garbanzo beans], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 149 }
+  - { id: white-beans, name: Canned white beans, aliases: [cannellini beans, white beans], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 149 }
+
+  # --- herbs: tender vs hardy (drives perishable-overlap planning) ---
+  - { id: cilantro, name: Cilantro, aliases: [fresh cilantro, coriander leaves], store_section: produce, perishability: tender_herb, allergens: [], typical_price_cents: 149 }
+  - { id: basil, name: Basil, aliases: [fresh basil], store_section: produce, perishability: tender_herb, allergens: [], typical_price_cents: 249 }
+  - { id: parsley, name: Parsley, aliases: [fresh parsley, flat-leaf parsley, italian parsley], store_section: produce, perishability: tender_herb, allergens: [], typical_price_cents: 149 }
+  - { id: mint, name: Mint, aliases: [fresh mint], store_section: produce, perishability: tender_herb, allergens: [], typical_price_cents: 199 }
+  - { id: dill, name: Dill, aliases: [fresh dill], store_section: produce, perishability: tender_herb, allergens: [], typical_price_cents: 199 }
+  - { id: bean-sprouts, name: Mung bean sprouts, aliases: [bean sprouts], store_section: produce, perishability: tender_herb, allergens: [], typical_price_cents: 249 }
+  - { id: thyme, name: Thyme, aliases: [fresh thyme], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 249 }
+  - { id: rosemary, name: Rosemary, aliases: [fresh rosemary], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 249 }
+  - { id: ginger, name: Ginger, aliases: [fresh ginger, ginger root], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 99 }
+  - { id: scallions, name: Scallions, aliases: [green onions, spring onions], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 129 }
+  - { id: garlic, name: Garlic, aliases: [garlic cloves, head of garlic], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 79 }
+
+  # --- produce & pantry staples ---
+  - { id: yellow-onion, name: Yellow onions, aliases: [onion, onions, yellow onion], store_section: produce, perishability: stable, allergens: [], typical_price_cents: 129 }
+  - { id: cherry-tomatoes, name: Cherry tomatoes, aliases: [grape tomatoes], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 399 }
+  - { id: lemon, name: Lemons, aliases: [lemon], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 89 }
+  - { id: lime, name: Limes, aliases: [lime], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 69 }
+  - { id: baby-spinach, name: Baby spinach, aliases: [spinach], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 399 }
+  - { id: kale, name: Kale, aliases: [lacinato kale, curly kale], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 299 }
+  - { id: broccoli, name: Broccoli, aliases: [broccoli crowns], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 299 }
+  - { id: carrots, name: Carrots, aliases: [carrot], store_section: produce, perishability: stable, allergens: [], typical_price_cents: 199 }
+  - { id: bell-pepper, name: Bell peppers, aliases: [red bell pepper, bell pepper], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 179 }
+  - { id: cucumber, name: Cucumbers, aliases: [english cucumber, cucumber], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 149 }
+  - { id: avocado, name: Avocados, aliases: [avocado], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 199 }
+  - { id: potatoes, name: Yukon gold potatoes, aliases: [potatoes, yukon golds], store_section: produce, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: rice, name: Jasmine rice, aliases: [white rice, long-grain rice, basmati rice], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 599 }
+  - { id: quinoa, name: Quinoa, aliases: [], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 649 }
+  - { id: olive-oil, name: Olive oil, aliases: [extra-virgin olive oil, evoo], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 999 }
+  - { id: vegetable-oil, name: Vegetable oil, aliases: [neutral oil, canola oil], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 549 }
+  - { id: white-vinegar, name: Distilled white vinegar, aliases: [white vinegar], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 249 }
+  - { id: rice-vinegar, name: Rice vinegar, aliases: [], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 349 }
+  - { id: chicken-broth, name: Chicken broth, aliases: [chicken stock, low-sodium chicken broth], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 299 }
+  - { id: canned-tomatoes, name: Canned crushed tomatoes, aliases: [crushed tomatoes, canned whole tomatoes, diced tomatoes], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 249 }
+  - { id: chipotles-adobo, name: Chipotles in adobo, aliases: [canned chipotles in adobo, chipotle peppers in adobo], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 249 }
+  - { id: sesame-oil, name: Toasted sesame oil, aliases: [sesame oil], store_section: pantry, perishability: stable, allergens: [sesame], typical_price_cents: 549 }
+  - { id: tahini, name: Tahini, aliases: [], store_section: pantry, perishability: stable, allergens: [sesame], typical_price_cents: 699 }
+  - { id: dijon, name: Dijon mustard, aliases: [dijon], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 349 }
+  - { id: honey, name: Honey, aliases: [], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 549 }
+  - { id: miso, name: White miso, aliases: [miso paste, miso], store_section: pantry, perishability: stable, allergens: [soy], typical_price_cents: 549 }

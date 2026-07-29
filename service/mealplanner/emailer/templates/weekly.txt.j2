@@ -1,0 +1,30 @@
+THIS WEEK'S DINNERS — {{ week_label }}
+{% if long_lead_notes %}
+START AHEAD:
+{% for note in long_lead_notes %}  ! {{ note }}
+{% endfor %}{% endif %}
+{% for e in entries %}
+{{ e.day }}: {{ e.title }}{% if e.time_label %} ({{ e.time_label }}){% endif %}
+  {{ e.rationale }}
+{% for h in e.handling %}  - {{ h }}
+{% endfor %}{% endfor %}
+{% if perishable_notes %}
+No-waste pairings: {{ perishable_notes }}
+{% endif %}
+GROCERY LIST
+{% if budget_line %}{{ budget_line }}
+{% endif %}{% for section in grocery_sections %}
+[{{ section.label }}]
+{% for line in section.lines %}  [ ] {{ line.text }}{% if line.tag %} ({{ line.tag }}){% endif %}
+{% endfor %}{% endfor %}
+{% if carts %}
+CARTS
+{% for cart in carts %}- {{ cart.store }}: {{ cart.summary }}{% if cart.url %}
+  Review & submit: {{ cart.url }}{% endif %}{% if cart.not_found %}
+  Add by hand: {{ cart.not_found | join(', ') }}{% endif %}{% if cart.action_needed %}
+  {{ cart.action_needed }}{% endif %}
+{% endfor %}{% endif %}
+{% if feedback_url %}
+Rate dinners & tweak preferences: {{ feedback_url }}
+{% endif %}
+Orders are never submitted automatically — you review and pay at the store.

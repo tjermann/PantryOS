@@ -1,0 +1,28 @@
+# Selector pack for amazon.com Fresh / Whole Foods storefront.
+# Each slot is an ORDERED fallback list — when the site redesigns, fixing a
+# broken slot is a data edit here, not a code change. Prefer role/text
+# selectors over brittle CSS where possible.
+home_url: "https://www.amazon.com/fmc"
+login_url: "https://www.amazon.com/ap/signin"
+cart_url: "https://www.amazon.com/cart"
+signin_marker:
+  # Present only when logged OUT — used by check_session.
+  - "form[name='signIn']"
+  - "#ap_email"
+account_marker:
+  # Present when logged in.
+  - "#nav-link-accountList:not(:has-text('Sign in'))"
+  - "[data-nav-role='signin']:has-text('Hello')"
+search_input:
+  - "input#twotabsearchtextbox"
+  - "input[type='search']"
+result_card:
+  - "[data-component-type='s-search-result']"
+  - "[data-csa-c-item-id]"
+result_title:
+  - "h2 span"
+  - ".a-text-normal"
+add_button:
+  - "button:has-text('Add to cart')"
+  - "input[name='submit.addToCart']"
+  - "[data-action='add-to-cart']"

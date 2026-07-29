@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mealplanner"
+version = "0.1.0"
+description = "Self-hosted, cron-driven meal planning: Claude plans the week, Playwright loads carts, you review and submit"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "anthropic>=0.40",
+    "playwright>=1.45",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+    "itsdangerous>=2.2",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+mealplanner = "mealplanner.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mealplanner*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: hits the real Anthropic API (manual only)",
+    "live_store: drives a real store session (manual only)",
+]
+addopts = "-m 'not live and not live_store'"
