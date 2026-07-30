@@ -53,6 +53,29 @@ For the household web page (ratings + preferences, linked from every email),
 keep `mealplanner serve` running (e.g. a systemd user service) and set
 `web_base_url` in the user's config to `http://<your-box>:8321`.
 
+## Using a Claude subscription instead of an API key
+
+If this machine has [Claude Code](https://claude.com/claude-code) installed and
+signed in to a Claude subscription (Pro/Max), PantryOS can plan through it with
+**no per-token billing** — usage draws from your plan's allowance instead.
+Choose `claude-cli` at the backend question in `mealplanner setup`, or set it in
+an existing user's config:
+
+```yaml
+llm_backend: claude-cli    # default: api
+```
+
+With this backend no Anthropic API key is needed anywhere. Two gotchas:
+
+- Make sure `ANTHROPIC_API_KEY` is **not** set in cron's environment — if it
+  is, Claude Code bills that key instead of using your subscription.
+- The CLI must be on PATH for cron (`claude_cli_path` in config can point to
+  an absolute path like `/home/you/.nvm/versions/node/v22.17.0/bin/claude`).
+
+Structured output is enforced on our side either way: replies are schema-
+validated with a retry, and the deterministic allergen backstop runs on
+whatever any model proposes.
+
 ## Recipe library
 
 Point `recipe_library` at a folder containing `index.csv`

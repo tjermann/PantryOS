@@ -54,7 +54,11 @@ class UserConfig(BaseModel):
     name: str
     timezone: str = "America/New_York"
     email: EmailConfig
-    # Optional; falls back to the ANTHROPIC_API_KEY env var.
+    # "api" = Anthropic API key (user_info.json / env). "claude-cli" = headless
+    # Claude Code on the operator's Claude subscription — no per-token billing.
+    llm_backend: Literal["api", "claude-cli"] = "api"
+    claude_cli_path: str = "claude"
+    # Optional; falls back to user_info.json, then the ANTHROPIC_API_KEY env var.
     anthropic_api_key: str | None = None
     model: str = "claude-opus-5"
     recipe_library: str

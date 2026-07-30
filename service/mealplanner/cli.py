@@ -207,6 +207,11 @@ def validate_config_cmd(
             config = load_user_config(u)
             library = Path(config.recipe_library)
             missing = [] if (library / "index.csv").exists() else ["recipe library index.csv"]
+            if config.llm_backend == "claude-cli":
+                import shutil
+
+                if shutil.which(config.claude_cli_path) is None:
+                    missing.append(f"claude CLI ('{config.claude_cli_path}' not on PATH)")
             if missing:
                 typer.echo(f"[{u}] MISSING: {', '.join(missing)}")
                 ok = False

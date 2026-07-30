@@ -50,8 +50,12 @@ order history and "that substitution worked" notes feed future planning.
 ## Setup
 
 Requirements: Python 3.11+, a Linux/macOS box that stays on (a Raspberry Pi
-works), an [Anthropic API key](https://console.anthropic.com/), and a Gmail
-account with an [app password](https://myaccount.google.com/apppasswords).
+works), a Gmail account with an
+[app password](https://myaccount.google.com/apppasswords), and Claude access —
+either an [Anthropic API key](https://console.anthropic.com/) (metered; ~cents
+per week) **or** a Claude subscription with
+[Claude Code](https://claude.com/claude-code) signed in on the box (the
+`claude-cli` backend plans through your plan's allowance, no per-token cost).
 
 ```bash
 git clone https://github.com/tjermann/PantryOS.git

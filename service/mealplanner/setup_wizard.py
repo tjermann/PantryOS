@@ -185,11 +185,19 @@ def run_wizard(user: str | None = None, base: Path | None = None) -> Path:
         "/home/tyler/Documents/Claude-Meals/Claude-Meals/2-recipes",
     )
 
-    print("\n--- Anthropic API key ---")
-    print("Leave blank to use the shared key from user_info.json (recommended);")
-    print("or enter one here to give this household its own key (stored in this")
-    print("user's config with file permissions 600).")
-    api_key = _ask("API key (blank = use user_info.json)", "") or None
+    print("\n--- How should Claude be called? ---")
+    print("api        — Anthropic API key (pay per token; ~cents per week)")
+    print("claude-cli — headless Claude Code on this machine's Claude subscription")
+    print("             (no per-token cost; requires `claude` installed & signed in)")
+    llm_backend = _ask_choice("Backend", ["api", "claude-cli"], "api")
+
+    api_key = None
+    if llm_backend == "api":
+        print("\n--- Anthropic API key ---")
+        print("Leave blank to use the shared key from user_info.json (recommended);")
+        print("or enter one here to give this household its own key (stored in this")
+        print("user's config with file permissions 600).")
+        api_key = _ask("API key (blank = use user_info.json)", "") or None
 
     web_base = _ask(
         "\nWeb feedback UI base URL (for one-click rating links in emails; blank to skip)",
@@ -200,6 +208,7 @@ def run_wizard(user: str | None = None, base: Path | None = None) -> Path:
         name=name,
         timezone=timezone,
         email=EmailConfig(to=to),
+        llm_backend=llm_backend,  # type: ignore[arg-type]
         anthropic_api_key=api_key,
         recipe_library=library,
         planning_day=planning_day,  # type: ignore[arg-type]
