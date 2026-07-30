@@ -15,6 +15,7 @@ android/
 service/.venv/
 service/users/
 service/var/
+user_info.json
 __pycache__/
 *.egg-info/
 .pytest_cache/

@@ -108,10 +108,12 @@ def list_users(base: Path | None = None) -> list[str]:
 
 
 def resolve_api_key(config: UserConfig) -> str:
-    key = config.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
+    from .credentials import anthropic_key
+
+    key = config.anthropic_api_key or anthropic_key()
     if not key:
         raise RuntimeError(
             f"No Anthropic API key for user {config.name}: set anthropic_api_key in "
-            f"config.yaml or export ANTHROPIC_API_KEY."
+            f"user_info.json (copy sample_user_info.json), or per-user in config.yaml."
         )
     return key

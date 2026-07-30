@@ -1,6 +1,6 @@
-# Meal Planner (self-hosted)
+# PantryOS service
 
-A cron-driven meal-planning service you run on your own machine. Every week it:
+The cron-driven meal-planning service you run on your own machine. Every week it:
 
 1. **Plans dinners** with Claude (your own Anthropic API key), respecting each
    person's dietary restrictions, seasonality, variety, and your budget —
@@ -20,14 +20,14 @@ note with a start-by time (so a 4-hour marinade is never discovered at 6pm).
 ## Quickstart
 
 ```bash
-git clone <this repo> && cd meal-planner/service
+git clone https://github.com/tjermann/PantryOS.git && cd PantryOS/service
 python3.12 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/playwright install chromium         # for cart loading
 
-# Credentials (never stored in the repo):
-export ANTHROPIC_API_KEY=sk-ant-...           # or enter per-user during setup
-export MEALPLANNER_SMTP_USER=you@gmail.com    # Gmail address that sends mail
-export MEALPLANNER_SMTP_PASS=xxxx-xxxx-xxxx   # a Gmail App Password
+# Credentials — one gitignored file, never committed:
+cp sample_user_info.json user_info.json
+$EDITOR user_info.json                        # Anthropic API key + Gmail app password
+chmod 600 user_info.json
 
 .venv/bin/python -m mealplanner setup                     # the questionnaire
 .venv/bin/python -m mealplanner import-recipes --user you # one-time recipe parsing
@@ -70,8 +70,9 @@ excluded for allergy households — the system fails closed, never open.
 - **No store passwords, ever.** `login` opens a real browser window; you type
   credentials into the store's own site. Only the browser profile persists.
 - **No automatic checkout.** Carts stop at the cart page, always.
-- **Keys stay local.** Your Anthropic key lives in your environment or your
-  chmod-600 config; SMTP credentials live in the environment only.
+- **Keys stay local.** Your Anthropic key and Gmail app password live in
+  `user_info.json`, which is gitignored and never leaves your machine
+  (environment variables still work as a fallback).
 
 ## Development
 

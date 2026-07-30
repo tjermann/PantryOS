@@ -1,0 +1,16 @@
+{
+  "_readme": [
+    "Copy this file to user_info.json (same folder) and fill it in.",
+    "user_info.json is gitignored — your secrets never leave this machine.",
+    "After editing: chmod 600 user_info.json",
+    "Grocery-store passwords do NOT go here. Run `mealplanner login` once per",
+    "store — you log in inside a real browser window and the session persists."
+  ],
+  "anthropic_api_key": "sk-ant-api03-REPLACE-ME",
+  "email": {
+    "address": "you@gmail.com",
+    "app_password": "abcd efgh ijkl mnop",
+    "from_name": "PantryOS",
+    "_hint": "Gmail: myaccount.google.com/apppasswords (requires 2FA enabled)"
+  }
+}

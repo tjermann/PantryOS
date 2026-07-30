@@ -186,9 +186,10 @@ def run_wizard(user: str | None = None, base: Path | None = None) -> Path:
     )
 
     print("\n--- Anthropic API key ---")
-    print("Stored in your config with file permissions 600, or leave blank to use")
-    print("the ANTHROPIC_API_KEY environment variable.")
-    api_key = _ask("API key (blank = use env var)", "") or None
+    print("Leave blank to use the shared key from user_info.json (recommended);")
+    print("or enter one here to give this household its own key (stored in this")
+    print("user's config with file permissions 600).")
+    api_key = _ask("API key (blank = use user_info.json)", "") or None
 
     web_base = _ask(
         "\nWeb feedback UI base URL (for one-click rating links in emails; blank to skip)",

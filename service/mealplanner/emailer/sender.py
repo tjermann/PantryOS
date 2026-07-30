@@ -1,13 +1,14 @@
-"""Gmail SMTP sender. Credentials come from the environment only:
-MEALPLANNER_SMTP_USER / MEALPLANNER_SMTP_PASS (a Gmail app password) —
-never from user config files."""
+"""Gmail SMTP sender. Credentials come from user_info.json (see
+sample_user_info.json), with MEALPLANNER_SMTP_USER / MEALPLANNER_SMTP_PASS
+environment variables as a fallback. Never from per-user config files."""
 
 from __future__ import annotations
 
-import os
 import smtplib
 from dataclasses import dataclass
 from email.message import EmailMessage
+
+from ..credentials import smtp_credentials
 
 
 @dataclass(frozen=True)
@@ -16,18 +17,17 @@ class SmtpSettings:
     password: str
     host: str = "smtp.gmail.com"
     port: int = 465
-    from_name: str = "Meal Planner"
+    from_name: str = "PantryOS"
 
 
-def smtp_from_env() -> SmtpSettings:
-    user = os.environ.get("MEALPLANNER_SMTP_USER")
-    password = os.environ.get("MEALPLANNER_SMTP_PASS")
+def smtp_settings() -> SmtpSettings:
+    user, password, from_name = smtp_credentials()
     if not user or not password:
         raise RuntimeError(
-            "Set MEALPLANNER_SMTP_USER and MEALPLANNER_SMTP_PASS (Gmail app password) "
-            "in the environment to send email."
+            "No email credentials: fill in the \"email\" block of user_info.json "
+            "(copy sample_user_info.json) with your Gmail address and app password."
         )
-    return SmtpSettings(user=user, password=password)
+    return SmtpSettings(user=user, password=password, from_name=from_name)
 
 
 def build_message(
@@ -57,7 +57,7 @@ def send_email(
     cc: list[str] | None = None,
     settings: SmtpSettings | None = None,
 ) -> None:
-    settings = settings or smtp_from_env()
+    settings = settings or smtp_settings()
     msg = build_message(settings, to, cc or [], subject, text, html)
     with smtplib.SMTP_SSL(settings.host, settings.port) as server:
         server.login(settings.user, settings.password)
