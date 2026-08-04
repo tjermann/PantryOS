@@ -31,6 +31,11 @@ class TestScoreMatch:
     def test_no_match(self):
         assert score_match("saffron threads", "Chocolate Chip Cookies") == 0.0
 
+    def test_plural_singular_folding(self):
+        assert score_match("bananas", "Banana Conventional, 1 Each") == 1.0
+        assert score_match("chicken thighs", "Boneless Chicken Thigh Pack") == 1.0
+        assert score_match("cherry tomatoes", "Cherry Tomato, 1 Pint") == 1.0
+
 
 class TestSelectorPacks:
     def test_amazon_pack_has_all_slots(self):

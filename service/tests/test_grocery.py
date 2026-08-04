@@ -131,6 +131,33 @@ class TestBuildGroceryList:
         olive = line_for(result, "olive-oil")
         assert olive.qty == pytest.approx(4)  # 3 subbed + 1 native, aggregated
 
+    def test_staples_assumed_on_hand_except_restock(self):
+        seasoned = make_recipe(
+            "seasoned",
+            ingredients=[
+                ing("chicken-thigh", "1 lb chicken thighs", 1, "lb"),
+                ing("olive-oil", "2 tbsp olive oil", 2, "tbsp"),
+                ing(None, "1 tsp smoked paprika", 1, "tsp"),
+                ing(None, "salt and black pepper", None, None),
+            ],
+        )
+        result = build_grocery_list(
+            recipes=[(seasoned, 4)],
+            pantry=[],
+            standing=[StandingOrderLine(canonical_item_id="olive-oil", raw="olive oil",
+                                        qty=1, unit="each", reason="restock")],
+            items=ITEMS,
+            budget_enabled=False, budget_cents=None,
+            staples=["olive oil", "smoked paprika", "salt"],
+        )
+        names = [l.display_name for l in result.lines]
+        assert any("chicken" in n.lower() for n in names)      # real item bought
+        assert not any("paprika" in n.lower() for n in names)  # staple dropped
+        assert not any("salt" in n.lower() for n in names)
+        # restock bypasses the staple filter — we explicitly ran out
+        assert any(l.origin == "restock" for l in result.lines)
+        assert "Olive oil" in result.assumed_on_hand or "2 tbsp olive oil" in str(result.assumed_on_hand)
+
     def test_budget_only_when_fully_priced(self):
         priced = make_recipe(
             "priced",

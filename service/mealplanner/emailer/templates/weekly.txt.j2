@@ -6,13 +6,15 @@ START AHEAD:
 {% for e in entries %}
 {{ e.day }}: {{ e.title }}{% if e.time_label %} ({{ e.time_label }}){% endif %}
   {{ e.rationale }}
-{% for h in e.handling %}  - {{ h }}
+{% if e.url %}  Recipe: {{ e.url }}
+{% endif %}{% for h in e.handling %}  - {{ h }}
 {% endfor %}{% endfor %}
 {% if perishable_notes %}
 No-waste pairings: {{ perishable_notes }}
 {% endif %}
 GROCERY LIST
 {% if budget_line %}{{ budget_line }}
+{% endif %}{% if assumed_on_hand %}Assumed already in your pantry (not bought): {{ assumed_on_hand }}
 {% endif %}{% for section in grocery_sections %}
 [{{ section.label }}]
 {% for line in section.lines %}  [ ] {{ line.text }}{% if line.tag %} ({{ line.tag }}){% endif %}

@@ -52,6 +52,11 @@ def rating_url(user: str, base_url: str, slug: str, score: int, base: Path | Non
     return f"{base_url}/rate/{user}?t={token}"
 
 
+def recipe_url(user: str, base_url: str, slug: str, base: Path | None = None) -> str:
+    token = _serializer(user, base).dumps({"u": user})
+    return f"{base_url}/r/{user}/{slug}?t={token}"
+
+
 def _check(user: str, token: str | None, base: Path | None = None) -> dict:
     if not token:
         raise HTTPException(403, "missing token — use the link from your email")
@@ -146,6 +151,31 @@ def create_app(base: Path | None = None) -> FastAPI:
         else:
             parts.append("<p><small>No plan yet — check back after the next weekly email.</small></p>")
 
+        staples_list = store.load_staples()
+        staple_rows = "".join(
+            f"<li>{s} — "
+            f"<form method='post' action='/staples/{user}' style='display:inline'>"
+            f"<input type='hidden' name='t' value='{t}'>"
+            f"<input type='hidden' name='item' value='{s}'>"
+            f"<button name='action' value='restock' style='padding:2px 8px;font-size:12px'>ran out — buy this week</button> "
+            f"<button name='action' value='remove' style='padding:2px 8px;font-size:12px;background:#999'>remove</button>"
+            f"</form></li>"
+            for s in staples_list
+        ) or "<li><small>none yet</small></li>"
+        parts.append(
+            f"""<h2>Pantry staples (never auto-bought)</h2>
+<div class='card'>
+<p><small>Things you always have — salt, olive oil, spices. Recipes that use them
+won't add them to the weekly order. Tap 'ran out' to buy one this week.</small></p>
+<ul>{staple_rows}</ul>
+<form method='post' action='/staples/{user}'>
+<input type='hidden' name='t' value='{t}'>
+<input name='item' placeholder='e.g. sea salt, cumin, olive oil'>
+<button name='action' value='add'>Add staple</button>
+</form>
+</div>"""
+        )
+
         budget_dollars = (config.household.budget_cents_weekly or 0) // 100
         checked = "checked" if config.household.budget_enabled else ""
         parts.append(
@@ -166,6 +196,63 @@ planner up to run <code>mealplanner setup</code>.</small></p>
 </form>"""
         )
         return PAGE.format(body="".join(parts))
+
+    @app.get("/r/{user}/{slug}", response_class=HTMLResponse)
+    def recipe_page(user: str, slug: str, t: str | None = None):
+        _check(user, t, base)
+        from ..paths import parsed_cache_dir
+        from ..recipes.library import load_library
+
+        config = load_user_config(user, base)
+        entries = load_library(Path(config.recipe_library), parsed_cache_dir(user, base))
+        entry = next((e for e in entries if e.recipe.id == slug), None)
+        if entry is None:
+            raise HTTPException(404, "recipe not found")
+        recipe = entry.recipe
+        parts = [f"<h1>{recipe.title}</h1>",
+                 f"<p><small>Serves {recipe.serves}"
+                 + (f" · ~{recipe.published_time_min} min" if recipe.published_time_min else "")
+                 + "</small></p>"]
+        if recipe.ingredients:
+            parts.append("<h2>Ingredients</h2><ul>")
+            parts.extend(f"<li>{i.raw}</li>" for i in recipe.ingredients)
+            parts.append("</ul>")
+        if recipe.steps:
+            parts.append("<h2>Directions</h2><ol>")
+            for s in recipe.steps:
+                extra = []
+                if s.duration_min:
+                    extra.append(f"~{s.duration_min} min")
+                if s.unattended:
+                    extra.append("hands-off")
+                suffix = f" <small>({', '.join(extra)})</small>" if extra else ""
+                parts.append(f"<li>{s.text}{suffix}</li>")
+            parts.append("</ol>")
+        if not recipe.ingredients and entry.markdown_path.exists():
+            body = entry.markdown_path.read_text()
+            parts.append(f"<pre style='white-space:pre-wrap'>{body}</pre>")
+        return PAGE.format(body="".join(parts))
+
+    @app.post("/staples/{user}")
+    def staples(user: str, t: str = Form(...), action: str = Form(...),
+                item: str = Form("")):
+        _check(user, t, base)
+        store = StateStore(user_dir(user, base))
+        current = store.load_staples()
+        item = item.strip().lower()
+        if action == "add" and item:
+            store.save_staples([*current, item])
+            msg = f"'{item}' marked as always-on-hand"
+        elif action == "remove" and item in current:
+            store.save_staples([s for s in current if s != item])
+            msg = f"'{item}' will be bought when recipes need it"
+        elif action == "restock" and item:
+            store.add_restock(item)
+            msg = f"'{item}' added to this week's shopping (still a staple)"
+        else:
+            msg = "No change"
+        return RedirectResponse(f"/u/{user}?t={t}&saved={msg.replace(' ', '+')}",
+                                status_code=303)
 
     @app.get("/mark/{user}", response_class=HTMLResponse)
     def mark(user: str, t: str | None = None):

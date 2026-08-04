@@ -51,6 +51,15 @@ class GroceryListResult:
     lines: list[GroceryLine]
     est_total_cents: int | None
     budget: BudgetStatus
+    # Staple items assumed on hand and therefore not purchased this week.
+    assumed_on_hand: list[str] = field(default_factory=list)
+
+
+def _is_staple(name: str, staples: list[str]) -> bool:
+    import re
+
+    lowered = name.lower()
+    return any(re.search(rf"\b{re.escape(s)}\b", lowered) for s in staples)
 
 
 def build_grocery_list(
@@ -61,10 +70,12 @@ def build_grocery_list(
     budget_enabled: bool,
     budget_cents: int | None,
     substitutions: Mapping[str, str] | None = None,
+    staples: list[str] | None = None,
 ) -> GroceryListResult:
     lines: dict[str, GroceryLine] = {}
     unmatched: list[GroceryLine] = []
     substitutions = substitutions or {}
+    staples = staples or []
 
     # 1. Aggregate matched ingredients.
     for recipe, servings in recipes:
@@ -158,11 +169,21 @@ def build_grocery_list(
             )
         )
 
-    all_lines = [
+    candidate_lines = [
         *(l for l in lines.values() if l.qty is None or l.qty > 0),
         *unmatched,
         *standing_lines,
     ]
+    # Staples are assumed on hand: dropped from every purchase EXCEPT explicit
+    # restock lines ("we ran out"), which always buy.
+    assumed: list[str] = []
+    all_lines = []
+    for line in candidate_lines:
+        if line.origin != "restock" and _is_staple(line.display_name, staples):
+            if line.display_name not in assumed:
+                assumed.append(line.display_name)
+        else:
+            all_lines.append(line)
 
     # 4. Group by section.
     sections: dict[StoreSection, list[GroceryLine]] = {}
@@ -192,4 +213,5 @@ def build_grocery_list(
             budget_cents=budget_cents,
             under_budget_cents=under_budget_cents,
         ),
+        assumed_on_hand=assumed,
     )

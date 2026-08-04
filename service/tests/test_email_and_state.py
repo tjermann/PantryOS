@@ -83,7 +83,7 @@ def test_weekly_email_renders_both_parts():
     for body in (text, html):
         assert "Brined Pork Chops" in body
         assert "Coconut Chicken Curry" in body
-        assert "4 hr unattended lead time" in body          # long-lead flagged up top
+        assert "4 hr of unattended lead time" in body       # long-lead flagged up top
         assert "pull their portion" in body                 # split reminder
         assert "Cilantro across" in body                    # perishable pairing
         assert "Review" in body and "amazon.com/cart" in body

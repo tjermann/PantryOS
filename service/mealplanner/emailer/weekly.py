@@ -56,7 +56,9 @@ def build_weekly_email_context(
     week_start: date,
     carts: list[dict[str, Any]] | None = None,
     feedback_url: str | None = None,
+    recipe_links: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
+    recipe_links = recipe_links or {}
     people = {p.id: p.name for p in household.people}
 
     entries = []
@@ -66,10 +68,14 @@ def build_weekly_email_context(
         if recipe is None:
             continue
         day = date.fromisoformat(e.date).strftime("%A")
-        for flag in detect_long_lead(recipe):
-            hours = flag.lead_min / 60
-            lead = f"{hours:g} hr" if flag.lead_min >= 60 else f"{flag.lead_min} min"
-            long_lead_notes.append(f"{day}: {recipe.title} needs {lead} unattended lead time")
+        flags = detect_long_lead(recipe)
+        if flags:
+            total = sum(f.lead_min for f in flags)
+            lead = f"{total / 60:g} hr" if total >= 60 else f"{total} min"
+            steps = "" if len(flags) == 1 else f" across {len(flags)} steps"
+            long_lead_notes.append(
+                f"{day}: {recipe.title} needs {lead} of unattended lead time{steps} — start early"
+            )
         time_label = None
         if recipe.published_time_min:
             time_label = f"~{recipe.published_time_min} min listed"
@@ -91,6 +97,7 @@ def build_weekly_email_context(
                 "rationale": e.rationale,
                 "time_label": time_label,
                 "handling": handling,
+                "url": recipe_links.get(recipe.id),
             }
         )
 
@@ -140,6 +147,7 @@ def build_weekly_email_context(
 
     return {
         "week_label": week_start.strftime("week of %B %-d"),
+        "assumed_on_hand": ", ".join(grocery.assumed_on_hand) or None,
         "entries": entries,
         "long_lead_notes": long_lead_notes,
         "perishable_notes": perishable_notes,

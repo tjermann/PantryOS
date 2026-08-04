@@ -125,6 +125,19 @@ class StateStore:
         lines.append(StandingOrderLine(raw=raw, reason=reason))
         self.save_restock(lines)
 
+    # -- pantry staples -----------------------------------------------------
+    def load_staples(self) -> list[str]:
+        """Things assumed on hand (salt, olive oil, spices…): matching grocery
+        lines are dropped from purchases until explicitly restocked."""
+        path = self.root / "staples.yaml"
+        if not path.exists():
+            return []
+        return list(yaml.safe_load(path.read_text()) or [])
+
+    def save_staples(self, staples: list[str]) -> None:
+        cleaned = sorted({s.strip().lower() for s in staples if s.strip()})
+        _atomic_write(self.root / "staples.yaml", yaml.safe_dump(cleaned))
+
     # -- learnings ----------------------------------------------------------
     def load_learnings(self) -> str:
         path = self.root / "learnings.md"

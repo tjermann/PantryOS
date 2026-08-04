@@ -52,9 +52,24 @@ def load_selector_pack(name: str, user_override_dir: Path | None = None) -> dict
         )
 
 
+def _singular(token: str) -> str:
+    """Crude plural folding so 'bananas' matches 'Banana' and 'thighs' 'Thigh'."""
+    if len(token) > 3 and token.endswith("ies"):
+        return token[:-3] + "y"
+    if len(token) > 4 and token.endswith("oes"):
+        return token[:-2]  # tomatoes -> tomato, potatoes -> potato
+    if len(token) > 3 and token.endswith("es") and token[-3] in "hsxz":
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
 def _tokens(text: str) -> set[str]:
     return {
-        t for t in re.findall(r"[a-z]+", text.lower()) if len(t) > 2 and t not in _STOPWORDS
+        _singular(t)
+        for t in re.findall(r"[a-z]+", text.lower())
+        if len(t) > 2 and t not in _STOPWORDS
     }
 
 

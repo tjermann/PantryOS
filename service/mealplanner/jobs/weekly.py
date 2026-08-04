@@ -93,6 +93,7 @@ def run_weekly(
         budget_enabled=config.household.budget_enabled,
         budget_cents=config.household.budget_cents_weekly,
         substitutions=config.household.item_substitutions,
+        staples=store.load_staples(),
     )
 
     carts: list[dict] = []
@@ -102,10 +103,17 @@ def run_weekly(
         carts = load_all_carts(user, config, grocery.lines, base=base, dry_run=dry_run)
 
     feedback_url = None
+    recipe_links: dict[str, str] = {}
     if config.web_base_url:
         from ..web.app import feedback_url as signed_feedback_url
+        from ..web.app import recipe_url
 
-        feedback_url = signed_feedback_url(user, config.web_base_url.rstrip("/"), base)
+        base_url = config.web_base_url.rstrip("/")
+        feedback_url = signed_feedback_url(user, base_url, base)
+        recipe_links = {
+            e.recipe_id: recipe_url(user, base_url, e.recipe_id, base)
+            for e in result.proposal.entries
+        }
     context = build_weekly_email_context(
         plan=result,
         grocery=grocery,
@@ -115,6 +123,7 @@ def run_weekly(
         week_start=week_dates[0],
         carts=carts,
         feedback_url=feedback_url,
+        recipe_links=recipe_links,
     )
     text, html = render_weekly_email(context)
 

@@ -19,7 +19,8 @@
     {% for e in entries %}
     <tr style="border-bottom: 1px solid #eee; vertical-align: top;">
       <td style="padding: 6px 8px; white-space: nowrap;">{{ e.day }}</td>
-      <td style="padding: 6px 8px;"><strong>{{ e.title }}</strong>
+      <td style="padding: 6px 8px;"><strong>{% if e.url %}<a href="{{ e.url }}" style="color:#2b2b2b;">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</strong>
+        {% if e.url %}<br><a href="{{ e.url }}" style="color:#c96f4a; font-size:12px;">recipe →</a>{% endif %}
         {% if e.time_label %}<br><span style="color:#777;">{{ e.time_label }}</span>{% endif %}</td>
       <td style="padding: 6px 8px;">{{ e.rationale }}
         {% for h in e.handling %}<br><em>{{ h }}</em>{% endfor %}</td>
@@ -33,6 +34,7 @@
 
   <h2 style="font-size: 18px; margin-top: 26px;">Grocery list</h2>
   {% if budget_line %}<p style="font-size: 13px;">{{ budget_line }}</p>{% endif %}
+  {% if assumed_on_hand %}<p style="font-size: 13px; color: #777;">Assumed already in your pantry (not bought): {{ assumed_on_hand }}. Ran out of something? Mark it on the family page.</p>{% endif %}
   {% for section in grocery_sections %}
   <h3 style="font-size: 14px; margin: 12px 0 4px; color: #c96f4a; text-transform: uppercase; letter-spacing: .05em;">{{ section.label }}</h3>
   <ul style="margin: 0 0 0 18px; padding: 0; font-size: 14px;">
