@@ -1,7 +1,22 @@
 """Deterministic cart-matching logic (no browser)."""
 
 from mealplanner.carts.base import CartReport, LineResult
-from mealplanner.carts.selector_driver import load_selector_pack, score_match
+from mealplanner.carts.selector_driver import clean_query, load_selector_pack, score_match
+
+
+class TestCleanQuery:
+    def test_strips_quantities_units_and_prep(self):
+        assert clean_query("1/4 cup cilantro, chopped") == "cilantro"
+        assert clean_query("1 avocado, cut into 1/2-inch pieces") == "avocado"
+        assert clean_query("4 salmon fillets, skin-on") == "salmon fillets"
+        assert clean_query("1 1/2 lb extra-large shrimp (21-25), peeled and deveined") \
+            == "extra-large shrimp"
+        assert clean_query("6 scallions, whites/greens separated, sliced thin") == "scallions"
+        assert clean_query("2 cups fresh basil leaves") == "fresh basil leaves"
+
+    def test_plain_names_pass_through(self):
+        assert clean_query("Jasmine rice") == "Jasmine rice"
+        assert clean_query("frozen blueberries") == "frozen blueberries"
 
 
 class TestScoreMatch:

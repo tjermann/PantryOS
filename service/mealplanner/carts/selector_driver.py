@@ -17,6 +17,25 @@ from .base import LineResult, SessionStatus, StoreDriver
 
 _STOPWORDS = {"fresh", "organic", "large", "small", "whole", "the", "a", "of", "and"}
 
+_UNIT_WORDS = (
+    r"cups?|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|grams?|kg|"
+    r"cloves?|bunch(?:es)?|cans?|packages?|pk|pieces?|inch(?:es)?|slices?|sprigs?|heads?"
+)
+# Lines that aren't purchasable products at all.
+_UNBUYABLE = re.compile(r"reserved|pasta water|tap water|to taste", re.IGNORECASE)
+
+
+def clean_query(display_name: str) -> str:
+    """Reduce a recipe-phrased line to a searchable product name:
+    '1 1/2 lb extra-large shrimp (21-25), peeled and deveined' -> shrimp core."""
+    q = re.sub(r"\(.*?\)", " ", display_name)
+    q = q.split(",")[0]  # trailing prep clauses: ', chopped', ', skin-on'
+    q = re.sub(r"[½⅓¼⅔¾⅛⅜⅝⅞]", " ", q)
+    q = re.sub(r"\b\d+(?:[\s/.\-]\d+)*\b", " ", q)  # 4, 1/2, 12-14, 1.5
+    q = re.sub(rf"\b(?:{_UNIT_WORDS})\b", " ", q, flags=re.IGNORECASE)
+    q = re.sub(r"\s+", " ", q).strip(" -–")
+    return q or display_name.strip()
+
 
 def load_selector_pack(name: str, user_override_dir: Path | None = None) -> dict:
     """User-local pack (users/<u>/selectors/<name>.yaml) wins over the packaged one."""
@@ -90,7 +109,9 @@ class SelectorDriver(StoreDriver):
         return "unknown"
 
     def search_and_add(self, page, line: GroceryLine) -> LineResult:
-        query = re.sub(r"\(.*?\)", "", line.display_name).strip()
+        if _UNBUYABLE.search(line.display_name):
+            return LineResult(line.display_name, "skipped", note="not a purchasable item")
+        query = clean_query(line.display_name)
         search_url = self.pack.get("search_url")
         if search_url:
             # Direct search URL (e.g. Amazon's i=wholefoods index): keeps the

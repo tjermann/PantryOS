@@ -67,13 +67,11 @@ def load_cart_for_store(
 
                     result = LineResult(line.display_name, "not_found", note=str(exc)[:120])
                 report.results.append(result)
-                # Only site-broken signals (search box gone, zero results, page
-                # errors) count toward the abort — ordinary match misses are
-                # normal and just land on the add-by-hand list.
+                # Only site-broken signals (search box gone/blocked) count
+                # toward the abort — match misses and empty results are normal
+                # for recipe-phrased queries and just land on the by-hand list.
                 site_broken = result.status == "not_found" and (
-                    result.note is None
-                    or "search box" in (result.note or "")
-                    or "no results" in (result.note or "")
+                    result.note is None or "search box" in (result.note or "")
                 )
                 hard_failures = hard_failures + 1 if site_broken else 0
                 if hard_failures >= MAX_CONSECUTIVE_FAILURES:
