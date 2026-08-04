@@ -3,7 +3,9 @@
 # broken slot is a data edit here, not a code change. Prefer role/text
 # selectors over brittle CSS where possible.
 home_url: "https://www.amazon.com/"
-login_url: "https://www.amazon.com/ap/signin"
+# Your-Account URL: when logged out Amazon redirects it to a properly-formed
+# sign-in page (hitting /ap/signin directly errors without flow params).
+login_url: "https://www.amazon.com/gp/css/homepage.html"
 cart_url: "https://www.amazon.com/cart"
 signin_marker:
   # Present only when logged OUT — used by check_session. The homepage greeting
