@@ -2,17 +2,18 @@
 # Each slot is an ORDERED fallback list — when the site redesigns, fixing a
 # broken slot is a data edit here, not a code change. Prefer role/text
 # selectors over brittle CSS where possible.
-home_url: "https://www.amazon.com/fmc"
+home_url: "https://www.amazon.com/"
 login_url: "https://www.amazon.com/ap/signin"
 cart_url: "https://www.amazon.com/cart"
 signin_marker:
-  # Present only when logged OUT — used by check_session.
+  # Present only when logged OUT — used by check_session. The homepage greeting
+  # reads "Hello, sign in" when logged out and "Hello, <name>" when logged in.
+  - "#nav-link-accountList:has-text('sign in')"
   - "form[name='signIn']"
   - "#ap_email"
 account_marker:
-  # Present when logged in.
-  - "#nav-link-accountList:not(:has-text('Sign in'))"
-  - "[data-nav-role='signin']:has-text('Hello')"
+  # Checked only after signin_marker misses, so bare presence is enough.
+  - "#nav-link-accountList"
 search_input:
   - "input#twotabsearchtextbox"
   - "input[type='search']"

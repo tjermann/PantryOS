@@ -81,7 +81,7 @@ class TestSeasonForMonth:
 
 class TestFilterCandidates:
     def test_filters_season_lifecycle_equipment(self):
-        household = make_household(equipment=["sheet_pan"])
+        household = make_household(equipment=["sheet_pan"], avoid_proteins=["Pork"])
         candidates, rejected = filter_candidates(
             [
                 make_recipe("in-season", seasons=["summer"]),
@@ -89,6 +89,7 @@ class TestFilterCandidates:
                 make_recipe("wintery", seasons=["winter"]),
                 make_recipe("cut-recipe", seasons=["summer"]),
                 make_recipe("needs-ip", seasons=["summer"], equipment=["instant_pot"]),
+                make_recipe("porky", seasons=["summer"], protein="pork"),
             ],
             state_map([{"recipe_id": "cut-recipe", "lifecycle": "cut"}]),
             household,
@@ -99,3 +100,4 @@ class TestFilterCandidates:
         assert ("wintery", "out_of_season") in reasons
         assert ("cut-recipe", "lifecycle_cut") in reasons
         assert ("needs-ip", "missing_equipment") in reasons
+        assert ("porky", "avoided_protein") in reasons

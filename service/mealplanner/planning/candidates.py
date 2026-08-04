@@ -28,7 +28,9 @@ def season_for_month(month: int, region: Literal["northern", "southern"]) -> Sea
     return northern if region == "northern" else _FLIP[northern]
 
 
-RejectReason = Literal["out_of_season", "lifecycle_cut", "missing_equipment"]
+RejectReason = Literal[
+    "out_of_season", "lifecycle_cut", "missing_equipment", "avoided_protein"
+]
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,7 @@ def filter_candidates(
     household owns all required equipment."""
     season = season_for_month(month, household.region)
     owned = set(household.equipment)
+    avoided = {p.lower() for p in household.avoid_proteins}
     candidates: list[Recipe] = []
     rejected: list[RejectedCandidate] = []
 
@@ -54,6 +57,9 @@ def filter_candidates(
         state = states.get(recipe.id)
         if state is not None and state.lifecycle == "cut":
             rejected.append(RejectedCandidate(recipe.id, "lifecycle_cut"))
+            continue
+        if recipe.protein.lower() in avoided:
+            rejected.append(RejectedCandidate(recipe.id, "avoided_protein"))
             continue
         if "year_round" not in recipe.seasons and season not in recipe.seasons:
             rejected.append(RejectedCandidate(recipe.id, "out_of_season"))

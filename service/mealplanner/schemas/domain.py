@@ -120,6 +120,9 @@ class Household(StrictModel):
     people: list[Person] = Field(default_factory=list)
     restrictions: list[DietaryRestriction] = Field(default_factory=list)
     equipment: list[str] = Field(default_factory=list)
+    # Proteins the household won't eat (e.g. "pork") — recipes with these
+    # protein tags are filtered out deterministically, before planning.
+    avoid_proteins: list[str] = Field(default_factory=list)
     dinners_per_week: int = Field(default=5, ge=1, le=7)
     budget_cents_weekly: int | None = None
     budget_enabled: bool = False
