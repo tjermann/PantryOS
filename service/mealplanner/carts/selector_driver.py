@@ -91,12 +91,22 @@ class SelectorDriver(StoreDriver):
 
     def search_and_add(self, page, line: GroceryLine) -> LineResult:
         query = re.sub(r"\(.*?\)", "", line.display_name).strip()
+        # Fresh page per item: add-to-cart overlays from the previous item
+        # otherwise cover the search box and block every later click.
+        try:
+            page.goto(self.home_url(), wait_until="domcontentloaded", timeout=20000)
+        except Exception:
+            pass  # search box check below is the real gate
         search = self._first_visible(page, "search_input")
         if search is None:
             return LineResult(line.display_name, "not_found", note="search box not found")
-        search.click()
-        search.fill(query)
-        search.press("Enter")
+        try:
+            search.click(timeout=8000)
+            search.fill(query)
+            search.press("Enter")
+        except Exception as exc:
+            return LineResult(line.display_name, "not_found",
+                              note=f"search box not found (blocked: {str(exc)[:60]})")
         human_pause()
 
         cards = None
@@ -111,7 +121,7 @@ class SelectorDriver(StoreDriver):
         if cards is None:
             return LineResult(line.display_name, "not_found", note="no results")
 
-        best_title, best_score, best_card = None, 0.0, None
+        scored = []
         for i in range(min(self.RESULTS_TO_CONSIDER, cards.count())):
             card = cards.nth(i)
             title = None
@@ -122,30 +132,30 @@ class SelectorDriver(StoreDriver):
                         break
                 except Exception:
                     continue
-            if not title:
-                continue
-            s = score_match(query, title)
-            if s > best_score:
-                best_title, best_score, best_card = title, s, card
-        if best_card is None or best_score < self.MATCH_THRESHOLD:
+            if title:
+                scored.append((score_match(query, title), title, card))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        eligible = [s for s in scored if s[0] >= self.MATCH_THRESHOLD]
+        if not eligible:
+            best = scored[0][1] if scored else None
             return LineResult(line.display_name, "not_found",
-                              note=f"best match too weak ({best_title!r})" if best_title else None)
+                              note=f"best match too weak ({best!r})" if best else "no titles")
 
-        added = False
-        for bsel in self.pack.get("add_button", []):
-            try:
-                best_card.locator(bsel).first.click(timeout=3000)
-                added = True
-                break
-            except Exception:
-                continue
-        if not added:
-            return LineResult(line.display_name, "not_found", note="add button not found",
-                              product_title=best_title)
-        human_pause()
-        exact = score_match(best_title or "", query) >= 0.99 and best_score >= 0.99
-        return LineResult(
-            line.display_name,
-            "added" if best_score >= 0.75 or exact else "substituted",
-            product_title=best_title,
-        )
+        # Try candidates best-first: variant-style listings ("See options")
+        # carry no add button, so fall through to the next-best match.
+        for score, title, card in eligible:
+            for bsel in self.pack.get("add_button", []):
+                try:
+                    button = card.locator(bsel).first
+                    button.scroll_into_view_if_needed(timeout=2000)
+                    button.click(timeout=4000)
+                    human_pause()
+                    return LineResult(
+                        line.display_name,
+                        "added" if score >= 0.75 else "substituted",
+                        product_title=title,
+                    )
+                except Exception:
+                    continue
+        return LineResult(line.display_name, "not_found", note="no addable card",
+                          product_title=eligible[0][1])

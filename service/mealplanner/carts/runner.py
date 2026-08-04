@@ -50,6 +50,7 @@ def load_cart_for_store(
         context = p.chromium.launch_persistent_context(str(profile), headless=True)
         try:
             page = context.new_page()
+            page.set_default_timeout(10000)  # bound worst-case per action
             driver = driver_for(store, user, base)
             report.session = driver.check_session(page)
             if report.session == "expired":
@@ -57,7 +58,7 @@ def load_cart_for_store(
                     f"session expired — run: mealplanner login --user {user} --store {store.id}"
                 )
                 return report
-            failures = 0
+            hard_failures = 0
             for line in store_lines(store, lines):
                 try:
                     result = driver.search_and_add(page, line)
@@ -66,8 +67,16 @@ def load_cart_for_store(
 
                     result = LineResult(line.display_name, "not_found", note=str(exc)[:120])
                 report.results.append(result)
-                failures = failures + 1 if result.status == "not_found" else 0
-                if failures >= MAX_CONSECUTIVE_FAILURES:
+                # Only site-broken signals (search box gone, zero results, page
+                # errors) count toward the abort — ordinary match misses are
+                # normal and just land on the add-by-hand list.
+                site_broken = result.status == "not_found" and (
+                    result.note is None
+                    or "search box" in (result.note or "")
+                    or "no results" in (result.note or "")
+                )
+                hard_failures = hard_failures + 1 if site_broken else 0
+                if hard_failures >= MAX_CONSECUTIVE_FAILURES:
                     report.error = "stopped after repeated failures (site change? run login again)"
                     break
             report.cart_url = driver.cart_url()
