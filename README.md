@@ -47,49 +47,43 @@ order history and "that substitution worked" notes feed future planning.
 | `packages/engine/` | TypeScript reference implementation of the deterministic core (allergen backstop, variety rules, grocery pipeline). The Python core is a 1:1 port; the two test suites are the contract. |
 | `apps/mobile/`, `supabase/`, `packages/*` | A shelved mobile-app iteration kept for reference. |
 
-## Setup
+## Setup — three steps, no coding
 
-Requirements: Python 3.11+, a Linux/macOS box that stays on (a Raspberry Pi
-works), a Gmail account with an
-[app password](https://myaccount.google.com/apppasswords), and Claude access —
-either an [Anthropic API key](https://console.anthropic.com/) (metered; ~cents
-per week) **or** a Claude subscription with
-[Claude Code](https://claude.com/claude-code) signed in on the box (the
-`claude-cli` backend plans through your plan's allowance, no per-token cost).
+You need: a Linux or macOS computer that stays on (an old laptop or Raspberry
+Pi is perfect), a Gmail account, and Claude access — either a
+[Claude subscription](https://claude.com/claude-code) already signed in on the
+machine (no per-token cost) or an
+[Anthropic API key](https://console.anthropic.com/) (~cents per week).
+
+**1. Install** — open a terminal and paste:
 
 ```bash
-git clone https://github.com/tjermann/PantryOS.git
-cd PantryOS/service
-python3 -m venv .venv && .venv/bin/pip install -e .
-.venv/bin/playwright install chromium
-
-# 1. Credentials — one gitignored file:
-cp sample_user_info.json user_info.json
-$EDITOR user_info.json          # API key + Gmail address/app password
-chmod 600 user_info.json
-
-# 2. Your household — interactive questionnaire (people, allergies, stores,
-#    budget, planning day, standing items, email recipients):
-.venv/bin/python -m mealplanner setup
-
-# 3. Recipes — point at a library (index.csv + markdown files; a one-time
-#    Claude parse structures them, cached until a file changes):
-.venv/bin/python -m mealplanner import-recipes --user <you>
-
-# 4. Store login — a real browser window opens; you log in (2FA and all).
-#    PantryOS never sees or stores your store password:
-.venv/bin/python -m mealplanner login --user <you> --store <store-id>
-
-# 5. Trial run:
-.venv/bin/python -m mealplanner send-test-email --user <you>
-.venv/bin/python -m mealplanner run-weekly --user <you> --dry-run
-.venv/bin/python -m mealplanner run-weekly --user <you> --force
+git clone https://github.com/tjermann/PantryOS.git && cd PantryOS && ./install.sh
 ```
 
-Then put it on cron and start the family web page — see
-[`service/README.md`](service/README.md) for the cron lines, the web UI
-(`mealplanner serve`), multi-household setup, and every CLI command
-(`rate`, `mark`, `review-orders`, …).
+The installer sets everything up in its own private environment (it never
+touches your system's Python) and flows straight into…
+
+**2. Answer the questionnaire.** It asks for everything in plain language:
+your Gmail app password ([create one here](https://myaccount.google.com/apppasswords)
+— the wizard walks you through it), who eats at your house, any allergies
+(tracked per person), your stores, budget, planning day, and the staples you
+buy every week. PantryOS ships with a starter recipe library, so there's
+nothing else to prepare — you can point it at your own recipe folder later.
+
+**3. Finish the one-time steps** the wizard prints at the end:
+
+```bash
+service/.venv/bin/mealplanner import-recipes --user <you>   # structure the recipes (one time)
+service/.venv/bin/mealplanner login --user <you> --store <store>  # sign in to your store in a real browser window
+service/.venv/bin/mealplanner run-weekly --user <you> --dry-run   # preview your first week
+service/.venv/bin/mealplanner install-cron                  # make it automatic, forever
+```
+
+From then on it runs itself: the weekly plan lands in your inbox on your
+planning day with the cart already loaded, and your family rates dinners from
+links in the email. See [`service/README.md`](service/README.md) for
+multi-household setup, the web page, and every command.
 
 ## Principles
 

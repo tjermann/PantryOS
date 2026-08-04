@@ -65,10 +65,43 @@ def _slug(name: str) -> str:
     return "".join(c if c.isalnum() else "-" for c in name.lower()).strip("-")
 
 
+def _ensure_credentials() -> None:
+    """First run on a fresh clone: collect operator credentials interactively
+    and write user_info.json — no manual JSON editing."""
+    import json
+
+    from .credentials import SERVICE_ROOT, load_user_info
+
+    if load_user_info():
+        return
+    print("\n--- One-time credentials (stored ONLY on this computer) ---")
+    print("PantryOS emails your weekly plan from a Gmail account. It needs an")
+    print("'app password' (not your normal password). To create one:")
+    print("  1. Turn on 2-step verification for the Gmail account")
+    print("  2. Visit https://myaccount.google.com/apppasswords")
+    print("  3. Create one named 'PantryOS' and paste the 16-letter code here")
+    address = _ask("Gmail address to send from")
+    app_password = _ask("Gmail app password")
+    print("\nFor the AI planning you can use a Claude subscription (pick the")
+    print("'claude-cli' backend in a moment) or an Anthropic API key from")
+    print("https://console.anthropic.com (pay-per-use, ~cents per week).")
+    api_key = _ask("Anthropic API key (blank if using a Claude subscription)", "") or None
+
+    path = SERVICE_ROOT / "user_info.json"
+    path.write_text(json.dumps({
+        "anthropic_api_key": api_key,
+        "email": {"address": address, "app_password": app_password, "from_name": "PantryOS"},
+    }, indent=2))
+    path.chmod(0o600)
+    load_user_info.cache_clear()
+    print(f"Saved {path} (private to this machine; never uploaded anywhere).")
+
+
 def run_wizard(user: str | None = None, base: Path | None = None) -> Path:
-    print("\n=== Meal Planner setup ===")
+    print("\n=== PantryOS setup ===")
     print("Answers land in a config file you can edit later, or re-run this")
     print("wizard any time with `mealplanner setup --user <name>`.\n")
+    _ensure_credentials()
 
     # --- household basics ---------------------------------------------------
     name = _ask("Household name (used for the users/ folder)", user or "home")
@@ -180,9 +213,13 @@ def run_wizard(user: str | None = None, base: Path | None = None) -> Path:
         to = [a.strip() for a in _ask("At least one recipient address").split(",") if a.strip()]
 
     print("\n--- Recipe library ---")
+    print("PantryOS ships with a starter library of original recipes; point this")
+    print("at your own folder (index.csv + library/ of markdown files) any time.")
+    from .credentials import SERVICE_ROOT
+
     library = _ask(
-        "Path to a recipe library (index.csv + library/ markdown)",
-        "/home/tyler/Documents/Claude-Meals/Claude-Meals/2-recipes",
+        "Path to a recipe library",
+        str(SERVICE_ROOT / "starter-recipes"),
     )
 
     print("\n--- How should Claude be called? ---")

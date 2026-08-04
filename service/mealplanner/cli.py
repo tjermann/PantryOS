@@ -239,6 +239,44 @@ def send_test_email_cmd(user: str = typer.Option(...)):
     typer.echo(f"Sent to {', '.join(config.email.to)}")
 
 
+@app.command("install-cron")
+def install_cron_cmd(
+    serve_port: int = typer.Option(8321, help="Port for the family feedback web page"),
+):
+    """Schedule PantryOS automatically (weekly plan, restock, tonight emails,
+    and the family web page on reboot). Safe to re-run; only adds what's missing."""
+    import subprocess
+    import sys
+    from .credentials import SERVICE_ROOT
+
+    python = Path(sys.executable).resolve()
+    prefix = f"cd {SERVICE_ROOT} && {python} -m mealplanner"
+    wanted = {
+        "pantryos-weekly": f"15 6 * * * {prefix} run-weekly --all-users >> var/log/weekly.log 2>&1",
+        "pantryos-restock": f"0 17 * * 3 {prefix} run-restock --all-users >> var/log/restock.log 2>&1",
+        "pantryos-tonight": f"0 15 * * * {prefix} run-tonight --all-users >> var/log/tonight.log 2>&1",
+        "pantryos-serve": (
+            f"@reboot cd {SERVICE_ROOT} && nohup {python} -m mealplanner serve "
+            f"--port {serve_port} >> var/log/serve.log 2>&1"
+        ),
+    }
+    (SERVICE_ROOT / "var" / "log").mkdir(parents=True, exist_ok=True)
+    current = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+    lines = current.stdout.splitlines() if current.returncode == 0 else []
+    added = []
+    for tag, entry in wanted.items():
+        if not any(tag in l for l in lines):
+            lines.append(f"{entry}  # {tag}")
+            added.append(tag)
+    if added:
+        subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n", text=True, check=True)
+        typer.echo(f"Scheduled: {', '.join(added)}")
+    else:
+        typer.echo("Already scheduled — nothing to do.")
+    typer.echo("PantryOS will now plan each household's week on its planning day,")
+    typer.echo("send restock and tonight emails, and keep the family page running.")
+
+
 @app.command()
 def serve(
     host: str = typer.Option("0.0.0.0"),
