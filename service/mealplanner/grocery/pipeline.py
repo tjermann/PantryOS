@@ -60,14 +60,24 @@ def build_grocery_list(
     items: Mapping[str, CanonicalItem],
     budget_enabled: bool,
     budget_cents: int | None,
+    substitutions: Mapping[str, str] | None = None,
 ) -> GroceryListResult:
     lines: dict[str, GroceryLine] = {}
     unmatched: list[GroceryLine] = []
+    substitutions = substitutions or {}
 
     # 1. Aggregate matched ingredients.
     for recipe, servings in recipes:
         scale = servings / recipe.serves
-        for ing in recipe.ingredients:
+        for raw_ing in recipe.ingredients:
+            ing = raw_ing
+            if ing.canonical_item_id and ing.canonical_item_id in substitutions:
+                sub_id = substitutions[ing.canonical_item_id]
+                sub_item = items.get(sub_id)
+                ing = ing.model_copy(update={
+                    "canonical_item_id": sub_id,
+                    "raw": f"{sub_item.name if sub_item else sub_id} (subbed for {ing.raw})",
+                })
             if ing.is_optional:
                 continue
             if ing.canonical_item_id is None or ing.qty is None:

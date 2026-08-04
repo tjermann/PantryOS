@@ -123,6 +123,10 @@ class Household(StrictModel):
     # Proteins the household won't eat (e.g. "pork") — recipes with these
     # protein tags are filtered out deterministically, before planning.
     avoid_proteins: list[str] = Field(default_factory=list)
+    # Canonical-item swaps applied to every grocery list (e.g. vegetable-oil
+    # -> olive-oil): the banned item is never bought; its quantities aggregate
+    # under the substitute instead.
+    item_substitutions: dict[str, str] = Field(default_factory=dict)
     dinners_per_week: int = Field(default=5, ge=1, le=7)
     budget_cents_weekly: int | None = None
     budget_enabled: bool = False

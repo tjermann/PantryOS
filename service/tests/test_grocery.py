@@ -114,6 +114,23 @@ class TestBuildGroceryList:
         assert any(l.origin == "restock" for l in result.sections["dairy"])
         assert any(l.origin == "standing" for l in result.sections["other"])
 
+    def test_item_substitutions_redirect_purchases(self):
+        fry = make_recipe(
+            "fry",
+            ingredients=[
+                ing("vegetable-oil", "3 tbsp vegetable oil", 3, "tbsp"),
+                ing("olive-oil", "1 tbsp olive oil", 1, "tbsp"),
+            ],
+        )
+        result = build_grocery_list(
+            recipes=[(fry, 4)], pantry=[], standing=[], items=ITEMS,
+            budget_enabled=False, budget_cents=None,
+            substitutions={"vegetable-oil": "olive-oil"},
+        )
+        assert line_for(result, "vegetable-oil") is None
+        olive = line_for(result, "olive-oil")
+        assert olive.qty == pytest.approx(4)  # 3 subbed + 1 native, aggregated
+
     def test_budget_only_when_fully_priced(self):
         priced = make_recipe(
             "priced",

@@ -92,6 +92,7 @@ def run_weekly(
         items=items,
         budget_enabled=config.household.budget_enabled,
         budget_cents=config.household.budget_cents_weekly,
+        substitutions=config.household.item_substitutions,
     )
 
     carts: list[dict] = []
