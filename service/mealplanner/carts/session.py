@@ -40,8 +40,15 @@ def interactive_login(user: str, store_id: str, base: Path | None = None) -> int
             page.goto(driver.login_url(), wait_until="domcontentloaded")
             deadline = time.monotonic() + LOGIN_TIMEOUT_S
             while time.monotonic() < deadline:
-                time.sleep(5)
-                if driver.check_session(page) == "ok":
+                time.sleep(10)
+                # Probe in a separate tab — navigating the user's tab would
+                # yank them out of the sign-in flow mid-typing.
+                probe = context.new_page()
+                try:
+                    status = driver.check_session(probe)
+                finally:
+                    probe.close()
+                if status == "ok":
                     print(f"Logged in to {store_id}. Session saved to {profile}")
                     return 0
             print("Timed out waiting for login; the session may still have saved —")
