@@ -91,22 +91,35 @@ class SelectorDriver(StoreDriver):
 
     def search_and_add(self, page, line: GroceryLine) -> LineResult:
         query = re.sub(r"\(.*?\)", "", line.display_name).strip()
-        # Fresh page per item: add-to-cart overlays from the previous item
-        # otherwise cover the search box and block every later click.
-        try:
-            page.goto(self.home_url(), wait_until="domcontentloaded", timeout=20000)
-        except Exception:
-            pass  # search box check below is the real gate
-        search = self._first_visible(page, "search_input")
-        if search is None:
-            return LineResult(line.display_name, "not_found", note="search box not found")
-        try:
-            search.click(timeout=8000)
-            search.fill(query)
-            search.press("Enter")
-        except Exception as exc:
-            return LineResult(line.display_name, "not_found",
-                              note=f"search box not found (blocked: {str(exc)[:60]})")
+        search_url = self.pack.get("search_url")
+        if search_url:
+            # Direct search URL (e.g. Amazon's i=wholefoods index): keeps the
+            # store context and sidesteps overlay/search-box issues entirely.
+            from urllib.parse import quote_plus
+
+            try:
+                page.goto(search_url.format(query=quote_plus(query)),
+                          wait_until="domcontentloaded", timeout=20000)
+            except Exception as exc:
+                return LineResult(line.display_name, "not_found",
+                                  note=f"search box not found ({str(exc)[:60]})")
+        else:
+            # Fresh page per item: add-to-cart overlays from the previous item
+            # otherwise cover the search box and block every later click.
+            try:
+                page.goto(self.home_url(), wait_until="domcontentloaded", timeout=20000)
+            except Exception:
+                pass  # search box check below is the real gate
+            search = self._first_visible(page, "search_input")
+            if search is None:
+                return LineResult(line.display_name, "not_found", note="search box not found")
+            try:
+                search.click(timeout=8000)
+                search.fill(query)
+                search.press("Enter")
+            except Exception as exc:
+                return LineResult(line.display_name, "not_found",
+                                  note=f"search box not found (blocked: {str(exc)[:60]})")
         human_pause()
 
         cards = None

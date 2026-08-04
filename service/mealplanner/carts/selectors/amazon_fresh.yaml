@@ -1,8 +1,11 @@
-# Selector pack for amazon.com Fresh / Whole Foods storefront.
+# Selector pack for Whole Foods via amazon.com.
 # Each slot is an ORDERED fallback list — when the site redesigns, fixing a
 # broken slot is a data edit here, not a code change. Prefer role/text
 # selectors over brittle CSS where possible.
 home_url: "https://www.amazon.com/"
+# Search inside the Whole Foods index so results are real WFM groceries
+# (a bare amazon.com search returns pantry-shipped goods instead).
+search_url: "https://www.amazon.com/s?k={query}&i=wholefoods"
 # Your-Account URL: when logged out Amazon redirects it to a properly-formed
 # sign-in page (hitting /ap/signin directly errors without flow params).
 login_url: "https://www.amazon.com/gp/css/homepage.html"
