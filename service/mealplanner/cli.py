@@ -132,6 +132,32 @@ def import_recipes_cmd(
     typer.echo(f"Done: {counts}")
 
 
+@app.command("write-directions")
+def write_directions_cmd(user: str = typer.Option(...)):
+    """AI-write directions for library recipes that have none (clearly labeled).
+    Many imported libraries carry ingredients but point to a paywalled source
+    for the steps — this fills the gap so every recipe is cookable."""
+    from .llm.client import client_for_user
+    from .paths import parsed_cache_dir
+    from .recipes.importer import generate_directions
+    from .recipes.library import load_library
+
+    config = load_user_config(user)
+    client = client_for_user(config)
+    parsed_dir = parsed_cache_dir(user)
+    entries = load_library(Path(config.recipe_library), parsed_dir)
+    todo = [e for e in entries if not e.recipe.steps]
+    typer.echo(f"{len(todo)} recipes lack directions")
+    written = 0
+    for i, entry in enumerate(todo, 1):
+        if generate_directions(client, entry, parsed_dir, model=config.model):
+            written += 1
+            typer.echo(f"[{i}/{len(todo)}] {entry.recipe.title}: written")
+        else:
+            typer.echo(f"[{i}/{len(todo)}] {entry.recipe.title}: skipped")
+    typer.echo(f"Done: {written} recipes now have directions (labeled AI-written).")
+
+
 @app.command()
 def rate(
     user: str = typer.Option(...),

@@ -135,9 +135,11 @@ def create_app(base: Path | None = None) -> FastAPI:
                 lifecycle = current.lifecycle if current else "to_try"
                 keep_t = s.dumps({"u": user, "m": slug, "lc": "keeper"})
                 cut_t = s.dumps({"u": user, "m": slug, "lc": "cut"})
+                recipe_t = s.dumps({"u": user})
                 parts.append(
                     f"<div class='card'><strong>{slug.replace('-', ' ').title()}</strong> "
-                    f"<small>({entry.get('date')}, now: {lifecycle})</small>"
+                    f"<small>({entry.get('date')}, now: {lifecycle})</small> "
+                    f"<a href='/r/{user}/{slug}?t={recipe_t}'>view recipe →</a>"
                     f"<div class='stars'>{stars}</div>"
                     f"<form method='post' action='/note/{user}'>"
                     f"<input type='hidden' name='t' value='{t}'>"
@@ -218,7 +220,21 @@ planner up to run <code>mealplanner setup</code>.</small></p>
             parts.extend(f"<li>{i.raw}</li>" for i in recipe.ingredients)
             parts.append("</ul>")
         if recipe.steps:
-            parts.append("<h2>Directions</h2><ol>")
+            import json as _json
+
+            from ..paths import parsed_cache_dir as _pcd
+
+            cache = _pcd(user, base) / f"{slug}.json"
+            ai_written = cache.exists() and _json.loads(cache.read_text()).get(
+                "directions_ai_generated"
+            )
+            parts.append("<h2>Directions</h2>")
+            if ai_written:
+                parts.append(
+                    "<p><small>These steps were written by PantryOS AI (the original "
+                    "source didn't include them) — use your judgment as you cook.</small></p>"
+                )
+            parts.append("<ol>")
             for s in recipe.steps:
                 extra = []
                 if s.duration_min:
@@ -228,6 +244,13 @@ planner up to run <code>mealplanner setup</code>.</small></p>
                 suffix = f" <small>({', '.join(extra)})</small>" if extra else ""
                 parts.append(f"<li>{s.text}{suffix}</li>")
             parts.append("</ol>")
+        else:
+            source = entry.source or "the original source"
+            parts.append(
+                f"<h2>Directions</h2><p>Your recipe library doesn't include directions "
+                f"for this one (it points to {source}). Ask whoever runs PantryOS to run "
+                f"<code>mealplanner write-directions</code> to fill these in.</p>"
+            )
         if not recipe.ingredients and entry.markdown_path.exists():
             body = entry.markdown_path.read_text()
             parts.append(f"<pre style='white-space:pre-wrap'>{body}</pre>")

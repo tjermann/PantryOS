@@ -92,6 +92,56 @@ def enrich_with_ontology(parsed: ParsedRecipe) -> list[dict]:
     return out
 
 
+class GeneratedSteps(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    steps: list[ParsedStep] = Field(default_factory=list)
+
+
+DIRECTIONS_PROMPT = """You write clear home-cook directions for a recipe when the
+original directions are unavailable. You are given the recipe title and its exact
+ingredient list. Write concise numbered steps a competent home cook can follow:
+sensible order, standard technique for this well-known dish, temperatures and
+doneness cues, duration_min on steps with meaningful time, unattended=true for
+hands-off waits (marinating, chilling, simmering, roasting). Use ONLY the listed
+ingredients. 6-12 steps."""
+
+
+def generate_directions(
+    client: anthropic.Anthropic,
+    entry: LibraryEntry,
+    parsed_dir: Path,
+    model: str = "claude-opus-5",
+) -> bool:
+    """Fill in AI-written steps for a cached recipe that has none. Returns True
+    if directions were written."""
+    cache_file = parsed_dir / f"{entry.recipe.id}.json"
+    if not cache_file.exists():
+        return False
+    data = json.loads(cache_file.read_text())
+    if data.get("steps"):
+        return False
+    ingredients = "\n".join(f"- {i['raw']}" for i in data.get("ingredients", []))
+    response = client.messages.parse(
+        model=model,
+        max_tokens=8000,
+        system=DIRECTIONS_PROMPT,
+        messages=[{
+            "role": "user",
+            "content": f"Recipe: {entry.recipe.title}\nServes: {entry.recipe.serves}\n"
+                       f"Ingredients:\n{ingredients}",
+        }],
+        output_format=GeneratedSteps,
+        output_config={"effort": "low"},
+    )
+    generated = response.parsed_output
+    if generated is None or not generated.steps:
+        return False
+    data["steps"] = [s.model_dump() for s in generated.steps]
+    data["directions_ai_generated"] = True
+    cache_file.write_text(json.dumps(data, indent=2))
+    return True
+
+
 def import_entry(
     client: anthropic.Anthropic,
     entry: LibraryEntry,
