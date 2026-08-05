@@ -316,6 +316,42 @@ def serve(
     uvicorn.run(create_app(), host=host, port=port)
 
 
+@app.command("restart-serve")
+def restart_serve_cmd(
+    host: str = typer.Option("0.0.0.0"),
+    port: int = typer.Option(8321),
+):
+    """Cleanly restart the family web page (kills any stale copies first)."""
+    import subprocess
+    import sys
+    import time
+    import urllib.request
+
+    from .credentials import SERVICE_ROOT
+
+    subprocess.run(["pkill", "-f", "mealplanner serve"], capture_output=True)
+    time.sleep(1.5)
+    log_dir = SERVICE_ROOT / "var" / "log"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_dir / "serve.log", "ab") as log:
+        subprocess.Popen(
+            [sys.executable, "-m", "mealplanner", "serve", "--host", host,
+             "--port", str(port)],
+            cwd=SERVICE_ROOT, stdout=log, stderr=log, start_new_session=True,
+        )
+    for _ in range(20):
+        time.sleep(0.5)
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=3) as r:
+                if r.status == 200:
+                    typer.echo(f"Family page is up on port {port}.")
+                    return
+        except Exception:
+            continue
+    typer.echo("Started, but the health check didn't pass — see var/log/serve.log")
+    raise typer.Exit(1)
+
+
 def _resolve_slug(user: str, query: str) -> str:
     """Fuzzy-match a title against the user's library."""
     from .recipes.library import load_library, slugify
