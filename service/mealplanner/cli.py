@@ -305,7 +305,7 @@ def install_cron_cmd(
         "pantryos-weekly": f"15 6 * * * {prefix} run-weekly --all-users >> var/log/weekly.log 2>&1",
         "pantryos-restock": f"0 17 * * 3 {prefix} run-restock --all-users >> var/log/restock.log 2>&1",
         "pantryos-tonight": f"0 15 * * * {prefix} run-tonight --all-users >> var/log/tonight.log 2>&1",
-        "pantryos-inbox": f"*/30 * * * * {prefix} run-inbox >> var/log/inbox.log 2>&1",
+        "pantryos-inbox": f"0 8,18 * * * {prefix} run-inbox >> var/log/inbox.log 2>&1",
         "pantryos-serve": (
             f"@reboot cd {SERVICE_ROOT} && nohup {python} -m mealplanner serve "
             f"--port {serve_port} >> var/log/serve.log 2>&1"
