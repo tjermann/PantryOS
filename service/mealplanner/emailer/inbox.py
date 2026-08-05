@@ -78,19 +78,22 @@ def poll_inbox(base: Path | None = None, dry_run: bool = False) -> int:
             msg = email.message_from_bytes(fetched[0][1])
             sender = email.utils.parseaddr(msg.get("From", ""))[1].lower()
             if sender not in senders:
-                continue  # not a household member; leave unseen for a human
+                continue  # not a household member; leave untouched for a human
             user, name = senders[sender]
             text = strip_quoted_reply(_plain_text(msg))
-            if not text:
-                imap.store(num, "+FLAGS", "\\Seen")
-                continue
             if dry_run:
-                print(f"[{user}] would ingest from {name}: {text[:80]!r}")
-            else:
+                if text:
+                    print(f"[{user}] would ingest from {name}: {text[:80]!r}")
+                continue
+            if text:
                 StateStore(user_dir(user, base)).append_learning(
                     f"Email feedback from {name} ({date.today().isoformat()}): {text}"
                 )
-                imap.store(num, "+FLAGS", "\\Seen")
                 print(f"[{user}] feedback from {name} recorded ({len(text)} chars)")
-            ingested += 1
+                ingested += 1
+            # Processed either way — clear it from the inbox (Gmail keeps an
+            # archived copy in All Mail; nothing is destroyed).
+            imap.store(num, "+FLAGS", "\\Deleted")
+        if not dry_run:
+            imap.expunge()
     return ingested
