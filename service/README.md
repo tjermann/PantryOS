@@ -97,6 +97,27 @@ excluded for allergy households — the system fails closed, never open.
   `user_info.json`, which is gitignored and never leaves your machine
   (environment variables still work as a fallback).
 
+## Troubleshooting
+
+**"Site can't be reached" on the family page, but only in some browsers**
+(commonly: Safari works, Chrome doesn't): the browser is silently upgrading
+the address to HTTPS, which the family page doesn't speak. Either click
+"Continue to site" on Chrome's warning page, or turn off Chrome →
+Settings → Privacy and security → Security → "Always use secure
+connections" (or add an exception for the PantryOS address). The page only
+exists on your home network, so plain HTTP is a reasonable trade here.
+
+**Family page won't load anywhere**: run
+`service/.venv/bin/mealplanner restart-serve` — it kills stale copies,
+starts fresh, and health-checks before reporting. If links stopped working
+after a router or computer reboot, the machine's address may have changed:
+reserve a fixed IP for it in your router's app, and update `web_base_url`
+in your user config to match.
+
+**Cart says "session expired"**: run
+`mealplanner login --user <you> --store <store>` again and sign in in the
+browser window that opens.
+
 ## Development
 
 ```bash
