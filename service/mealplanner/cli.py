@@ -99,6 +99,30 @@ def run_tonight_cmd(
     _run_for_each(_users(user, all_users), lambda u: run_tonight(u, dry_run=dry_run))
 
 
+@app.command("run-inbox")
+def run_inbox_cmd(dry_run: bool = typer.Option(False, "--dry-run")):
+    """Read email replies from household members into planning feedback."""
+    from .emailer.inbox import poll_inbox
+
+    count = poll_inbox(dry_run=dry_run)
+    typer.echo(f"{count} feedback message(s) processed")
+
+
+@app.command("add-recipe")
+def add_recipe_cmd(
+    url: str = typer.Argument(..., help="Recipe page URL (blogs with structured recipe data)"),
+    user: str = typer.Option(...),
+):
+    """Import a recipe from the web into this household's personal library."""
+    from .llm.client import client_for_user
+    from .recipes.webimport import import_from_url
+
+    config = load_user_config(user)
+    client = client_for_user(config)
+    slug = import_from_url(client, user, url, model=config.model)
+    typer.echo(f"Imported: {slug} — it's now part of {user}'s library and future plans.")
+
+
 @app.command()
 def login(
     user: str = typer.Option(...), store: str = typer.Option(...),
@@ -281,6 +305,7 @@ def install_cron_cmd(
         "pantryos-weekly": f"15 6 * * * {prefix} run-weekly --all-users >> var/log/weekly.log 2>&1",
         "pantryos-restock": f"0 17 * * 3 {prefix} run-restock --all-users >> var/log/restock.log 2>&1",
         "pantryos-tonight": f"0 15 * * * {prefix} run-tonight --all-users >> var/log/tonight.log 2>&1",
+        "pantryos-inbox": f"*/30 * * * * {prefix} run-inbox >> var/log/inbox.log 2>&1",
         "pantryos-serve": (
             f"@reboot cd {SERVICE_ROOT} && nohup {python} -m mealplanner serve "
             f"--port {serve_port} >> var/log/serve.log 2>&1"
@@ -369,10 +394,11 @@ def restart_serve_cmd(
 
 def _resolve_slug(user: str, query: str) -> str:
     """Fuzzy-match a title against the user's library."""
-    from .recipes.library import load_library, slugify
+    from .recipes.library import slugify
+    from .recipes.merged import load_full_library
 
     config = load_user_config(user)
-    entries = load_library(Path(config.recipe_library))
+    entries = load_full_library(user, config.recipe_library)
     q = slugify(query)
     exact = [e for e in entries if e.recipe.id == q]
     if exact:

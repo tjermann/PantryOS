@@ -16,7 +16,7 @@ from ..emailer.weekly import build_weekly_email_context, render_weekly_email
 from ..paths import parsed_cache_dir
 from ..planning.candidates import filter_candidates
 from ..planning.variety import VarietyRules
-from ..recipes.library import load_library
+from ..recipes.merged import load_full_library
 from ..state.store import StateStore
 
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -49,7 +49,7 @@ def run_weekly(
 
     store = StateStore(user_dir(user, base))
     items = load_ontology()
-    library = load_library(Path(config.recipe_library), parsed_cache_dir(user, base))
+    library = load_full_library(user, config.recipe_library, base)
     recipes_by_id = {e.recipe.id: e.recipe for e in library}
     states = store.load_recipe_states()
 
@@ -106,7 +106,7 @@ def run_weekly(
     recipe_links: dict[str, str] = {}
     if config.web_base_url:
         from ..web.app import feedback_url as signed_feedback_url
-        from ..web.app import recipe_url
+        from ..web.app import rating_url, recipe_url
 
         base_url = config.web_base_url.rstrip("/")
         feedback_url = signed_feedback_url(user, base_url, base)
@@ -114,6 +114,14 @@ def run_weekly(
             e.recipe_id: recipe_url(user, base_url, e.recipe_id, base)
             for e in result.proposal.entries
         }
+        rating_links = {
+            e.recipe_id: [
+                (n, rating_url(user, base_url, e.recipe_id, n, base)) for n in range(1, 6)
+            ]
+            for e in result.proposal.entries
+        }
+    else:
+        rating_links = {}
     context = build_weekly_email_context(
         plan=result,
         grocery=grocery,
@@ -124,6 +132,7 @@ def run_weekly(
         carts=carts,
         feedback_url=feedback_url,
         recipe_links=recipe_links,
+        rating_links=rating_links,
     )
     text, html = render_weekly_email(context)
 

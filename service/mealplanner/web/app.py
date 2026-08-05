@@ -25,7 +25,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from itsdangerous import BadSignature, URLSafeSerializer
 
 from ..config import list_users, load_user_config, save_user_config, user_dir
-from ..recipes.library import load_library
+from ..recipes.merged import load_full_library
 from ..state.store import StateStore
 
 
@@ -203,10 +203,10 @@ planner up to run <code>mealplanner setup</code>.</small></p>
     def recipe_page(user: str, slug: str, t: str | None = None):
         _check(user, t, base)
         from ..paths import parsed_cache_dir
-        from ..recipes.library import load_library
+        from ..recipes.merged import load_full_library
 
         config = load_user_config(user, base)
-        entries = load_library(Path(config.recipe_library), parsed_cache_dir(user, base))
+        entries = load_full_library(user, config.recipe_library, base)
         entry = next((e for e in entries if e.recipe.id == slug), None)
         if entry is None:
             raise HTTPException(404, "recipe not found")
@@ -216,9 +216,23 @@ planner up to run <code>mealplanner setup</code>.</small></p>
                  + (f" · ~{recipe.published_time_min} min" if recipe.published_time_min else "")
                  + "</small></p>"]
         if recipe.ingredients:
-            parts.append("<h2>Ingredients</h2><ul>")
-            parts.extend(f"<li>{i.raw}</li>" for i in recipe.ingredients)
-            parts.append("</ul>")
+            parts.append("<h2>Ingredients</h2>")
+            current_group: str | None = object()  # sentinel so None prints once
+            open_list = False
+            for i in recipe.ingredients:
+                if i.group != current_group:
+                    if open_list:
+                        parts.append("</ul>")
+                    if i.group:
+                        parts.append(
+                            f"<h3 style='font-size:14px;margin:10px 0 2px;color:#c96f4a;'>{i.group}</h3>"
+                        )
+                    parts.append("<ul>")
+                    open_list = True
+                    current_group = i.group
+                parts.append(f"<li>{i.raw}</li>")
+            if open_list:
+                parts.append("</ul>")
         if recipe.steps:
             import json as _json
 

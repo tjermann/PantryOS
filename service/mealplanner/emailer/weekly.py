@@ -57,8 +57,10 @@ def build_weekly_email_context(
     carts: list[dict[str, Any]] | None = None,
     feedback_url: str | None = None,
     recipe_links: Mapping[str, str] | None = None,
+    rating_links: Mapping[str, list[tuple[int, str]]] | None = None,
 ) -> dict[str, Any]:
     recipe_links = recipe_links or {}
+    rating_links = rating_links or {}
     people = {p.id: p.name for p in household.people}
 
     entries = []
@@ -98,6 +100,7 @@ def build_weekly_email_context(
                 "time_label": time_label,
                 "handling": handling,
                 "url": recipe_links.get(recipe.id),
+                "stars": rating_links.get(recipe.id, []),
             }
         )
 

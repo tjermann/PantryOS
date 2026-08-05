@@ -76,6 +76,24 @@ Structured output is enforced on our side either way: replies are schema-
 validated with a retry, and the deterministic allergen backstop runs on
 whatever any model proposes.
 
+## Growing the library from the web
+
+```bash
+mealplanner add-recipe "https://cookieandkate.com/some-recipe/" --user <you>
+```
+
+Works with any blog that publishes structured recipe data (most do — Cookie
+and Kate, Half Baked Harvest, Begin With Balance…). The recipe lands in your
+household's personal library, fully structured (grouped ingredients, numbered
+steps), and joins the planning pool immediately. Stored for your own use only.
+
+## Feedback without the web page
+
+Household members can skip the family page entirely: the weekly email carries
+one-tap ★ rating links under every dinner, and **replying to the email works**
+— a half-hourly inbox check (`run-inbox`, scheduled by `install-cron`) reads
+replies from household members and feeds them into the next plan.
+
 ## Recipe library
 
 Point `recipe_library` at a folder containing `index.csv`

@@ -23,7 +23,9 @@
         {% if e.url %}<br><a href="{{ e.url }}" style="color:#c96f4a; font-size:12px;">recipe →</a>{% endif %}
         {% if e.time_label %}<br><span style="color:#777;">{{ e.time_label }}</span>{% endif %}</td>
       <td style="padding: 6px 8px;">{{ e.rationale }}
-        {% for h in e.handling %}<br><em>{{ h }}</em>{% endfor %}</td>
+        {% for h in e.handling %}<br><em>{{ h }}</em>{% endfor %}
+        {% if e.stars %}<br><span style="font-size:12px;color:#777;">Rate:</span>
+        {% for n, link in e.stars %}<a href="{{ link }}" style="text-decoration:none;font-size:15px;">{{ '★' * n }}{{ '☆' * (5 - n) }}</a>&nbsp; {% endfor %}{% endif %}</td>
     </tr>
     {% endfor %}
   </table>
@@ -69,6 +71,8 @@
   </p>
   {% endif %}
   <p style="font-size: 12px; color: #999; margin-top: 20px;">
-    Orders are never submitted automatically — you review and pay at the store. Reply isn't monitored.
+    Orders are never submitted automatically — you review and pay at the store.<br>
+    <strong>Or just reply to this email</strong> with any feedback ("less spicy",
+    "loved Tuesday", "more soups") — replies are read and shape next week's plan.
   </p>
 </div>

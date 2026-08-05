@@ -11,7 +11,7 @@ from ..config import load_user_config, user_dir
 from ..emailer.sender import send_email
 from ..paths import parsed_cache_dir
 from ..planning.long_lead import total_lead_min
-from ..recipes.library import load_library
+from ..recipes.merged import load_full_library
 from ..state.store import StateStore
 
 
@@ -30,7 +30,7 @@ def run_tonight(user: str, *, base: Path | None = None, dry_run: bool = False,
     if entry is None:
         return 0
 
-    library = load_library(Path(config.recipe_library), parsed_cache_dir(user, base))
+    library = load_full_library(user, config.recipe_library, base)
     match = next((e for e in library if e.recipe.id == entry["recipe_id"]), None)
     if match is None:
         return 0

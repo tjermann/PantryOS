@@ -70,6 +70,9 @@ class UserConfig(BaseModel):
     standing_orders: list[StandingOrderLine] = Field(default_factory=list)
     emails_enabled: EmailsEnabled = Field(default_factory=EmailsEnabled)
     organic_preference: Literal["none", "produce_only", "everything"] = "none"
+    # Favorite recipe websites — used as suggestions for `add-recipe` and by
+    # future discovery features.
+    recipe_sources: list[str] = Field(default_factory=list)
     # Base URL of the feedback web UI, used for signed links in emails.
     web_base_url: str | None = None
 

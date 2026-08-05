@@ -30,6 +30,7 @@ class ParsedIngredient(BaseModel):
     unit: str | None = None
     prep_note: str | None = None
     is_optional: bool = False
+    group: str | None = None  # "Sauce", "Marinade", … when the source groups them
     added_at_step: int | None = None
 
 
@@ -86,6 +87,7 @@ def enrich_with_ontology(parsed: ParsedRecipe) -> list[dict]:
                 "unit": ing.unit,
                 "prep_note": ing.prep_note,
                 "is_optional": ing.is_optional,
+                "group": ing.group,
                 "added_at_step": ing.added_at_step,
             }
         )

@@ -44,6 +44,9 @@ class RecipeIngredient(StrictModel):
     unit: str | None = None
     prep_note: str | None = None
     is_optional: bool = False
+    # Component this ingredient belongs to ("Sauce", "Marinade", "For the bowl")
+    # when the source recipe groups them; None for ungrouped.
+    group: str | None = None
     # 1-based step index at which this ingredient enters the dish; enables Split.
     added_at_step: int | None = None
 
