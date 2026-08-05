@@ -307,7 +307,7 @@ def install_cron_cmd(
 def serve(
     host: str = typer.Option("0.0.0.0"),
     port: int = typer.Option(8321),
-    https: bool = typer.Option(True, help="Serve over HTTPS (self-signed certificate)"),
+    https: bool = typer.Option(False, help="Serve over HTTPS (self-signed certificate)"),
 ):
     """Run the household feedback web UI (ratings, notes, preferences)."""
     import uvicorn
