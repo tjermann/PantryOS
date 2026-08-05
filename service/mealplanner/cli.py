@@ -307,13 +307,20 @@ def install_cron_cmd(
 def serve(
     host: str = typer.Option("0.0.0.0"),
     port: int = typer.Option(8321),
+    https: bool = typer.Option(True, help="Serve over HTTPS (self-signed certificate)"),
 ):
     """Run the household feedback web UI (ratings, notes, preferences)."""
     import uvicorn
 
     from .web.app import create_app
 
-    uvicorn.run(create_app(), host=host, port=port)
+    kwargs = {}
+    if https:
+        from .web.certs import ensure_self_signed_cert
+
+        cert, key = ensure_self_signed_cert()
+        kwargs = {"ssl_certfile": str(cert), "ssl_keyfile": str(key)}
+    uvicorn.run(create_app(), host=host, port=port, **kwargs)
 
 
 @app.command("restart-serve")
@@ -339,15 +346,23 @@ def restart_serve_cmd(
              "--port", str(port)],
             cwd=SERVICE_ROOT, stdout=log, stderr=log, start_new_session=True,
         )
+    import ssl
+
+    insecure = ssl.create_default_context()
+    insecure.check_hostname = False
+    insecure.verify_mode = ssl.CERT_NONE
     for _ in range(20):
         time.sleep(0.5)
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=3) as r:
-                if r.status == 200:
-                    typer.echo(f"Family page is up on port {port}.")
-                    return
-        except Exception:
-            continue
+        for scheme, ctx in (("https", insecure), ("http", None)):
+            try:
+                with urllib.request.urlopen(
+                    f"{scheme}://127.0.0.1:{port}/", timeout=3, context=ctx
+                ) as r:
+                    if r.status == 200:
+                        typer.echo(f"Family page is up on {scheme}, port {port}.")
+                        return
+            except Exception:
+                continue
     typer.echo("Started, but the health check didn't pass — see var/log/serve.log")
     raise typer.Exit(1)
 
