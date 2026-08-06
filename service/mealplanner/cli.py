@@ -77,6 +77,36 @@ def run_weekly_cmd(
     )
 
 
+@app.command("run-propose")
+def run_propose_cmd(
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    force: bool = typer.Option(False, "--force", help="Run even if today isn't proposal day"),
+):
+    """Email a proposed menu for family review (no shopping happens yet)."""
+    from .jobs.propose import run_propose
+
+    _run_for_each(_users(user, all_users),
+                  lambda u: run_propose(u, dry_run=dry_run, force=force))
+
+
+@app.command("run-iterate")
+def run_iterate_cmd(
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+):
+    """On proposal day: fold in new feedback and email a revised proposal."""
+    from .emailer.inbox import poll_inbox
+    from .jobs.propose import run_iterate
+
+    # Pull in any email replies first so they count as feedback.
+    try:
+        poll_inbox()
+    except Exception as exc:
+        print(f"inbox poll failed (continuing): {exc}")
+    _run_for_each(_users(user, all_users), lambda u: run_iterate(u, dry_run=dry_run))
+
+
 @app.command("run-restock")
 def run_restock_cmd(
     user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
@@ -302,6 +332,8 @@ def install_cron_cmd(
     python = Path(sys.executable).resolve()
     prefix = f"cd {SERVICE_ROOT} && {python} -m mealplanner"
     wanted = {
+        "pantryos-propose": f"15 6 * * * {prefix} run-propose --all-users >> var/log/propose.log 2>&1",
+        "pantryos-iterate": f"0 9,12,15,18 * * * {prefix} run-iterate --all-users >> var/log/iterate.log 2>&1",
         "pantryos-weekly": f"15 6 * * * {prefix} run-weekly --all-users >> var/log/weekly.log 2>&1",
         "pantryos-restock": f"0 17 * * 3 {prefix} run-restock --all-users >> var/log/restock.log 2>&1",
         "pantryos-tonight": f"0 15 * * * {prefix} run-tonight --all-users >> var/log/tonight.log 2>&1",

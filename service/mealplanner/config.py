@@ -63,6 +63,10 @@ class UserConfig(BaseModel):
     model: str = "claude-opus-5"
     recipe_library: str
     planning_day: Weekday = "saturday"
+    # Optional approval period: propose the menu on this day (typically the day
+    # before planning_day), iterate on family feedback all day, then execute
+    # the approved plan on planning_day. None = plan and shop in one shot.
+    proposal_day: Weekday | None = None
     dinner_hour: int = Field(default=18, ge=0, le=23)
     household: Household
     variety: VarietyConfig = Field(default_factory=VarietyConfig)

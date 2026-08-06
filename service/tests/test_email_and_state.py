@@ -116,6 +116,16 @@ class TestStateStore:
         reloaded = StateStore(tmp_path).load_recipe_states()["dish"]
         assert reloaded.ratings == [4, 5, 2]
 
+    def test_feedback_fingerprint_changes_with_feedback(self, tmp_path: Path):
+        store = StateStore(tmp_path)
+        before = store.feedback_fingerprint()
+        assert store.feedback_fingerprint() == before  # stable when nothing changes
+        store.append_learning("less spicy please")
+        after_learning = store.feedback_fingerprint()
+        assert after_learning != before
+        store.record_rating("some-dish", score=5)
+        assert store.feedback_fingerprint() != after_learning
+
     def test_plans_orders_learnings_roundtrip(self, tmp_path: Path):
         store = StateStore(tmp_path)
         store.save_plan("2026-W32", {"week": "2026-W32", "entries": []})

@@ -1,7 +1,12 @@
 <div style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto; color: #2b2b2b;">
   <h1 style="font-size: 22px; border-bottom: 2px solid #c96f4a; padding-bottom: 8px;">
-    This week's dinners — {{ week_label }}
+    {% if proposal_note %}Proposed dinners — {{ week_label }}{% else %}This week's dinners — {{ week_label }}{% endif %}
   </h1>
+  {% if proposal_note %}
+  <div style="background: #fff8e6; border: 2px solid #e0a800; border-radius: 6px; padding: 10px 14px; margin: 14px 0; font-size: 14px;">
+    {{ proposal_note }}
+  </div>
+  {% endif %}
 
   {% if long_lead_notes %}
   <div style="background: #fdf3e7; border-left: 4px solid #c96f4a; padding: 10px 14px; margin: 14px 0;">

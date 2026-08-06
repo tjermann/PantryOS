@@ -127,11 +127,20 @@ def propose_plan(
     learnings: str = "",
     variety_rules: VarietyRules | None = None,
     max_repairs: int = 2,
+    revision_context: str | None = None,
 ) -> PlanRunResult:
     candidate_map = {r.id: r for r in candidates}
     context = build_candidate_context(
         candidates, states, items, household, week_dates, learnings
     )
+    if revision_context:
+        context += (
+            "\n\n[REVISION] You previously proposed the plan below and the household "
+            "has since given feedback (see the newest learnings entries and any "
+            "rating/lifecycle changes). Revise the proposal: keep dishes the feedback "
+            "doesn't object to in place, and change what it targets.\nPrevious "
+            f"proposal: {revision_context}"
+        )
     system = [
         {
             "type": "text",

@@ -54,31 +54,72 @@ def run_weekly(
     states = store.load_recipe_states()
 
     week_dates = next_week_dates(today, config.household.dinners_per_week)
-    candidates, rejected = filter_candidates(
-        [e.recipe for e in library], states, config.household, week_dates[0].month
-    )
-    if not candidates:
-        print(f"[{user}] no candidate recipes (library empty or all filtered)", file=sys.stderr)
-        return 1
-    print(f"[{user}] {len(candidates)} candidates ({len(rejected)} filtered out)")
+    result = None
 
-    client = client_for_user(config)
-    result = propose_plan(
-        client,
-        model=config.model,
-        candidates=candidates,
-        states=states,
-        items=items,
-        household=config.household,
-        week_dates=week_dates,
-        learnings=store.load_learnings(),
-        variety_rules=VarietyRules(
-            max_same_protein_per_week=config.variety.max_same_protein_per_week,
-            repeat_window_days=config.variety.repeat_window_days,
-        ),
-    )
-    if result.dropped_recipe_ids:
-        print(f"[{user}] dropped unrepairable entries: {result.dropped_recipe_ids}")
+    # Approval flow: if yesterday's proposal (possibly revised through the day)
+    # is waiting, execute it instead of planning fresh.
+    if config.proposal_day is not None:
+        latest = store.latest_plan()
+        if latest is not None and latest[1].get("status") == "proposed":
+            from ..llm.planner import LlmUsage, PlanRunResult
+            from ..planning.validate import validate_plan
+            from ..schemas.plan import PlanEntryProposal, PlanProposal
+
+            _, plan = latest
+            entries = [
+                PlanEntryProposal.model_validate(e)
+                for e in plan.get("entries", [])
+                # honor last-minute "never again" clicks
+                if states.get(e["recipe_id"]) is None
+                or states[e["recipe_id"]].lifecycle != "cut"
+            ]
+            proposal = PlanProposal(entries=entries)
+            validation = validate_plan(
+                proposal, recipes_by_id, states, items, config.household
+            )
+            if validation.ok and entries:
+                if plan.get("week_dates"):
+                    week_dates = [date.fromisoformat(d) for d in plan["week_dates"]]
+                result = PlanRunResult(
+                    proposal=proposal,
+                    validation=validation,
+                    dropped_recipe_ids=[],
+                    usage=LlmUsage(0, 0, 0, 0),
+                    prompt_version=plan.get("prompt_version", "v1"),
+                    model=plan.get("model", config.model),
+                )
+                print(f"[{user}] executing approved proposal "
+                      f"(v{plan.get('iteration', 1)}, {len(entries)} dinners)")
+            else:
+                print(f"[{user}] proposal failed revalidation; planning fresh")
+
+    if result is None:
+        candidates, rejected = filter_candidates(
+            [e.recipe for e in library], states, config.household, week_dates[0].month
+        )
+        if not candidates:
+            print(f"[{user}] no candidate recipes (library empty or all filtered)",
+                  file=sys.stderr)
+            return 1
+        print(f"[{user}] {len(candidates)} candidates ({len(rejected)} filtered out)")
+
+        client = client_for_user(config)
+        result = propose_plan(
+            client,
+            model=config.model,
+            candidates=candidates,
+            states=states,
+            items=items,
+            household=config.household,
+            week_dates=week_dates,
+            learnings=store.load_learnings(),
+            variety_rules=VarietyRules(
+                max_same_protein_per_week=config.variety.max_same_protein_per_week,
+                repeat_window_days=config.variety.repeat_window_days,
+            ),
+        )
+        if result.dropped_recipe_ids:
+            print(f"[{user}] dropped unrepairable entries: {result.dropped_recipe_ids}")
 
     plan_recipes = [
         (recipes_by_id[e.recipe_id], e.servings)
@@ -153,6 +194,7 @@ def run_weekly(
         iso_week,
         {
             "week": iso_week,
+            "status": "final",
             "prompt_version": result.prompt_version,
             "model": result.model,
             "usage": result.usage.__dict__,

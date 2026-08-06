@@ -1,4 +1,6 @@
-THIS WEEK'S DINNERS — {{ week_label }}
+{% if proposal_note %}PROPOSED DINNERS — {{ week_label }}
+!! {{ proposal_note }}
+{% else %}THIS WEEK'S DINNERS — {{ week_label }}{% endif %}
 {% if long_lead_notes %}
 START AHEAD:
 {% for note in long_lead_notes %}  ! {{ note }}

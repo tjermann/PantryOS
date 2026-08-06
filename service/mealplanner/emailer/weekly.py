@@ -58,6 +58,7 @@ def build_weekly_email_context(
     feedback_url: str | None = None,
     recipe_links: Mapping[str, str] | None = None,
     rating_links: Mapping[str, list[tuple[int, str]]] | None = None,
+    proposal_note: str | None = None,
 ) -> dict[str, Any]:
     recipe_links = recipe_links or {}
     rating_links = rating_links or {}
@@ -150,6 +151,7 @@ def build_weekly_email_context(
 
     return {
         "week_label": week_start.strftime("week of %B %-d"),
+        "proposal_note": proposal_note,
         "assumed_on_hand": ", ".join(grocery.assumed_on_hand) or None,
         "entries": entries,
         "long_lead_notes": long_lead_notes,

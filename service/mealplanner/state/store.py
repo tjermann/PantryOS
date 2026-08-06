@@ -125,6 +125,22 @@ class StateStore:
         lines.append(StandingOrderLine(raw=raw, reason=reason))
         self.save_restock(lines)
 
+    def feedback_fingerprint(self) -> str:
+        """Hash of everything household feedback can touch — compared against a
+        proposal's stored fingerprint to detect 'new feedback arrived'."""
+        import hashlib
+
+        digest = hashlib.sha256()
+        for name in ("learnings.md", "recipes.yaml", "restock.yaml", "staples.yaml"):
+            path = self.root / name
+            digest.update(name.encode())
+            if path.exists():
+                digest.update(path.read_bytes())
+        config_path = self.root.parent / "config.yaml"
+        if config_path.exists():
+            digest.update(config_path.read_bytes())
+        return digest.hexdigest()
+
     # -- pantry staples -----------------------------------------------------
     def load_staples(self) -> list[str]:
         """Things assumed on hand (salt, olive oil, spices…): matching grocery
