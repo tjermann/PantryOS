@@ -74,9 +74,11 @@ class UserConfig(BaseModel):
     standing_orders: list[StandingOrderLine] = Field(default_factory=list)
     emails_enabled: EmailsEnabled = Field(default_factory=EmailsEnabled)
     organic_preference: Literal["none", "produce_only", "everything"] = "none"
-    # Favorite recipe websites — used as suggestions for `add-recipe` and by
-    # future discovery features.
+    # Favorite recipe websites: `discover-recipes` imports from them, and with
+    # source_policy 'exclusive' the planner uses ONLY recipes from these sites
+    # (plus anything hand-imported with add-recipe).
     recipe_sources: list[str] = Field(default_factory=list)
+    source_policy: Literal["open", "exclusive"] = "open"
     # Base URL of the feedback web UI, used for signed links in emails.
     web_base_url: str | None = None
 

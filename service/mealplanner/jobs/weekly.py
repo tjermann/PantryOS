@@ -49,7 +49,12 @@ def run_weekly(
 
     store = StateStore(user_dir(user, base))
     items = load_ontology()
-    library = load_full_library(user, config.recipe_library, base)
+    from ..recipes.merged import apply_source_policy
+
+    library = apply_source_policy(
+        load_full_library(user, config.recipe_library, base),
+        config.source_policy, config.recipe_sources,
+    )
     recipes_by_id = {e.recipe.id: e.recipe for e in library}
     states = store.load_recipe_states()
 

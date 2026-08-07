@@ -46,6 +46,50 @@ class TestJsonLdExtraction:
         assert _iso_duration_min("garbage") is None
 
 
+class TestSourcePolicy:
+    def _entry(self, slug, source, personal=False):
+        from pathlib import Path
+
+        from mealplanner.recipes.library import LibraryEntry
+        from mealplanner.schemas.domain import Recipe
+
+        recipe = Recipe(id=slug, title=slug, serves=4, protein="veg",
+                        cuisine="x", seasons=["year_round"])
+        return LibraryEntry(recipe=recipe, source=source,
+                            markdown_path=Path("/nonexistent"), real_time_min=None,
+                            personal=personal)
+
+    def test_exclusive_keeps_configured_domains_and_personal(self):
+        from mealplanner.recipes.merged import apply_source_policy
+
+        entries = [
+            self._entry("a", "https://cookieandkate.com/some-recipe/"),
+            self._entry("b", "americastestkitchen.com"),
+            self._entry("c", "https://www.halfbakedharvest.com/x/"),
+            self._entry("d", "https://randomblog.net/y/", personal=True),
+            self._entry("e", "PantryOS starter"),
+        ]
+        sources = ["https://cookieandkate.com/", "https://www.halfbakedharvest.com/"]
+        kept = {e.recipe.id for e in apply_source_policy(entries, "exclusive", sources)}
+        assert kept == {"a", "c", "d"}  # configured sites + hand-imported
+        assert len(apply_source_policy(entries, "open", sources)) == 5
+
+
+class TestSitemapParsing:
+    def test_extracts_post_urls_and_skips_junk(self):
+        from mealplanner.recipes.discover import SKIP_PATTERNS, _locs
+
+        xml = """<urlset>
+        <url><loc>https://cookieandkate.com/best-soup-recipe/</loc></url>
+        <url><loc>https://cookieandkate.com/category/soups/</loc></url>
+        <url><loc>https://cookieandkate.com/photo.jpg</loc></url>
+        </urlset>"""
+        locs = _locs(xml)
+        assert len(locs) == 3
+        kept = [u for u in locs if not SKIP_PATTERNS.search(u)]
+        assert kept == ["https://cookieandkate.com/best-soup-recipe/"]
+
+
 class TestReplyStripping:
     def test_keeps_own_words_drops_quote(self):
         body = (

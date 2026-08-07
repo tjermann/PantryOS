@@ -153,6 +153,24 @@ def add_recipe_cmd(
     typer.echo(f"Imported: {slug} — it's now part of {user}'s library and future plans.")
 
 
+@app.command("discover-recipes")
+def discover_recipes_cmd(
+    user: str = typer.Option(...),
+    limit: int = typer.Option(15, help="Max new recipes to import per source site"),
+):
+    """Crawl the household's favorite recipe sites and import new recipes."""
+    from .llm.client import client_for_user
+    from .recipes.discover import discover_all
+
+    config = load_user_config(user)
+    if not config.recipe_sources:
+        typer.echo("No recipe_sources configured — add sites to config.yaml first.")
+        raise typer.Exit(1)
+    client = client_for_user(config)
+    total = discover_all(client, user, config, limit)
+    typer.echo(f"Imported {total} new recipes across {len(config.recipe_sources)} sites.")
+
+
 @app.command()
 def login(
     user: str = typer.Option(...), store: str = typer.Option(...),

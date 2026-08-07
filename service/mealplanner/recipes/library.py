@@ -81,6 +81,7 @@ class LibraryEntry:
     source: str | None
     markdown_path: Path
     real_time_min: int | None  # measured column from the index; state-level data
+    personal: bool = False  # from the household's own imports (add-recipe/discover)
 
 
 def _cuisine_guess(title: str, protein: str) -> str:

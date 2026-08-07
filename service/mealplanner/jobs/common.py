@@ -38,7 +38,15 @@ def generate_plan(
     revision_context: str | None = None,
 ) -> tuple[PlanRunResult, dict[str, Recipe]]:
     items = load_ontology()
-    library = load_full_library(user, config.recipe_library, base)
+    from ..recipes.merged import apply_source_policy
+
+    library = apply_source_policy(
+        load_full_library(user, config.recipe_library, base),
+        config.source_policy, config.recipe_sources,
+    )
+    if config.source_policy == "exclusive":
+        print(f"[{user}] exclusive sources: {len(library)} recipes from "
+              f"{len(config.recipe_sources)} configured sites")
     recipes_by_id = {e.recipe.id: e.recipe for e in library}
     states = store.load_recipe_states()
     candidates, rejected = filter_candidates(
