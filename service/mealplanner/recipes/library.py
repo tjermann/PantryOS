@@ -114,7 +114,11 @@ def load_library(library_root: Path, parsed_dir: Path | None = None) -> list[Lib
                 if cache_file.exists():
                     parsed = json.loads(cache_file.read_text())
 
-            equipment = ["instant_pot"] if (row.get("instant_pot") or "").strip().lower() == "yes" else []
+            equipment = parsed.get("equipment") or (
+                ["instant_pot"]
+                if (row.get("instant_pot") or "").strip().lower() == "yes"
+                else []
+            )
             recipe = Recipe(
                 id=slug,
                 title=title,
@@ -125,6 +129,7 @@ def load_library(library_root: Path, parsed_dir: Path | None = None) -> list[Lib
                 seasons=parse_seasons(row.get("season")),
                 equipment=equipment,
                 effort=parsed.get("effort", "moderate"),
+                dish_type=parsed.get("dish_type", "dinner"),
                 ingredients=parsed.get("ingredients", []),
                 steps=parsed.get("steps", []),
             )

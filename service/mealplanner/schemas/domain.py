@@ -69,6 +69,8 @@ class Recipe(StrictModel):
     seasons: list[Season] = Field(min_length=1)
     equipment: list[str] = Field(default_factory=list)
     effort: Effort = "moderate"
+    # Only "dinner" recipes are planned; desserts/sides/sauces stay browsable.
+    dish_type: str = "dinner"
     ingredients: list[RecipeIngredient] = Field(default_factory=list)
     steps: list[RecipeStep] = Field(default_factory=list)
 

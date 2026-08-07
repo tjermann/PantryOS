@@ -110,12 +110,44 @@ def extract_jsonld_recipe(html: str) -> dict | None:
     return None
 
 
+EQUIPMENT_VOCAB = (
+    "instant_pot", "rice_cooker", "air_fryer", "stand_mixer", "grill",
+    "dutch_oven", "food_processor", "wok", "slow_cooker",
+)
+
+_EQUIPMENT_KEYWORDS = {
+    "air_fryer": ("air fryer", "air-fryer"),
+    "instant_pot": ("instant pot", "pressure cooker"),
+    "slow_cooker": ("slow cooker", "crockpot", "crock pot"),
+    "grill": ("on the grill", "grill grates", "preheat the grill", "charcoal grill"),
+    "stand_mixer": ("stand mixer",),
+    "food_processor": ("food processor",),
+    "dutch_oven": ("dutch oven",),
+    "wok": ("in a wok",),
+}
+
+
+def tag_equipment_from_text(title: str, steps: list[str]) -> list[str]:
+    """Deterministic backstop for equipment the classifier might miss."""
+    text = (title + " " + " ".join(steps)).lower()
+    return [tag for tag, needles in _EQUIPMENT_KEYWORDS.items()
+            if any(n in text for n in needles)]
+
+
 class _Classification(BaseModel):
     model_config = ConfigDict(extra="forbid")
     protein: str
     cuisine: str
     seasons: list[Literal["spring", "summer", "fall", "winter", "year_round"]]
     effort: Literal["easy", "moderate", "involved"]
+    dish_type: Literal[
+        "dinner", "side", "breakfast", "dessert", "drink", "sauce_or_condiment", "snack"
+    ] = "dinner"
+    # Special appliances the recipe REQUIRES (empty for normal stovetop/oven).
+    equipment: list[Literal[
+        "instant_pot", "rice_cooker", "air_fryer", "stand_mixer", "grill",
+        "dutch_oven", "food_processor", "wok", "slow_cooker",
+    ]] = Field(default_factory=list)
     # Parallel to the ingredient list: component group per ingredient (null when ungrouped).
     ingredient_groups: list[str | None] = Field(default_factory=list)
     # 1-based indices of steps that are hands-off waits, with their minutes.
@@ -125,10 +157,14 @@ class _Classification(BaseModel):
 CLASSIFY_PROMPT = """You annotate a structured recipe. Given its title, ingredients
 (numbered), and steps (numbered), return: the main protein (one lowercase word, or
 'veg'), cuisine (lowercase), applicable seasons (['year_round'] when unclear),
-effort (easy/moderate/involved by hands-on work), ingredient_groups (one entry PER
-ingredient, in order: the component it belongs to like 'Sauce'/'Marinade' when the
-recipe has components, else null), and unattended_steps (objects {"step": n,
-"minutes": m} for hands-off waits like marinating/baking/simmering)."""
+effort (easy/moderate/involved by hands-on work), dish_type (dinner only for a main
+meal; desserts, drinks, sides, sauces, breakfasts, snacks get their own type),
+equipment (special appliances the
+recipe REQUIRES — air fryer, instant pot, grill, slow cooker, etc.; empty for
+ordinary stovetop/oven cooking), ingredient_groups (one entry PER ingredient, in
+order: the component it belongs to like 'Sauce'/'Marinade' when the recipe has
+components, else null), and unattended_steps (objects {"step": n, "minutes": m}
+for hands-off waits like marinating/baking/simmering)."""
 
 
 def import_from_url(
@@ -210,11 +246,16 @@ def import_from_url(
     # Parsed cache entry (structured, ready to plan/cook)
     from ..paths import parsed_cache_dir
 
+    equipment = sorted(
+        set(cls.equipment) | set(tag_equipment_from_text(data["title"], data["steps"]))
+    )
     parsed = {
         "source_sha256": "webimport",
         "serves": data["serves"] or 4,
         "cuisine": cls.cuisine,
         "effort": cls.effort,
+        "dish_type": cls.dish_type,
+        "equipment": equipment,
         "ingredients": [
             {
                 "canonical_item_id": match_ingredient_text(text),

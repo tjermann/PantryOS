@@ -107,6 +107,32 @@ def test_unrepairable_entries_dropped_deterministically():
     assert result.validation.ok is True  # the delivered plan is backstop-clean
 
 
+def test_context_is_compact_index_with_dietary_annotations():
+    from datetime import date as _date
+
+    from mealplanner.llm.planner import build_candidate_context
+
+    context = build_candidate_context(
+        CANDIDATES, {}, ITEMS, HOUSEHOLD, [_date(2026, 8, 3)]
+    )
+    # No raw ingredient dumps for clear recipes — the index stays cheap.
+    assert "1 lb chicken" not in context
+    # Conflicting recipes carry the precomputed dietary annotation.
+    assert "dietary" in context
+    assert "1 cup cream" in context          # the conflict is named
+    assert "split_possible" in context
+
+
+def test_auto_cut_after_second_low_rating(tmp_path):
+    from mealplanner.state.store import StateStore
+
+    store = StateStore(tmp_path)
+    store.record_rating("meh-dish", score=2)
+    assert store.load_recipe_states()["meh-dish"].lifecycle == "probation"
+    store.record_rating("meh-dish", score=1)
+    assert store.load_recipe_states()["meh-dish"].lifecycle == "cut"
+
+
 def test_system_prompt_is_cacheable_prefix():
     client = FakeClient([PlanProposal(entries=[entry("safe")])])
     run(client)

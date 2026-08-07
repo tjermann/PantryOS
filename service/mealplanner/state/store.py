@@ -73,8 +73,13 @@ class StateStore:
         state = states.get(slug) or HouseholdRecipeState(recipe_id=slug)
         if score is not None:
             state.ratings.append(score)
-            # Lifecycle heuristic: two ratings >=4 → keeper; any <=2 → probation.
-            if score <= 2:
+            # Lifecycle heuristics: two ratings >=4 → keeper; one <=2 →
+            # probation; a second low rating → cut (auto-dropped from planning,
+            # stays viewable in the library).
+            low = [r for r in state.ratings if r <= 2]
+            if len(low) >= 2:
+                state.lifecycle = "cut"
+            elif score <= 2:
                 state.lifecycle = "probation"
             elif len([r for r in state.ratings if r >= 4]) >= 2:
                 state.lifecycle = "keeper"

@@ -21,10 +21,10 @@ PLANNING_SYSTEM_PROMPT = """You are the meal-planning engine for a family meal a
 
 ## Dietary handling
 
-Restrictions are per PERSON, not per household. For every entry, classify each restricted person as exactly one of:
-- "clear" — no conflicting ingredient.
+Restrictions are per PERSON, not per household. Candidates that conflict with a restriction carry a precomputed "dietary" annotation naming the conflicting ingredients, whether a clean split point exists (split_possible), and any unverifiable ingredients; candidates without the annotation are clear for everyone. For every entry, classify each restricted person as exactly one of:
+- "clear" — no conflicting ingredient (no dietary annotation for them).
 - "substitute" — a swap fixes it. Set substitute_item_id to a canonical item that does not conflict, and describe quantity in substitute_note.
-- "split" — the dish is cooked normally and that person's portion is pulled before the restricted ingredient is added. Only valid when every conflicting ingredient enters after step 1 (the candidate data marks ingredient entry steps). Often easier than substituting when only one person is affected.
+- "split" — the dish is cooked normally and that person's portion is pulled before the restricted ingredient is added. Only valid when the annotation says split_possible. Often easier than substituting when only one person is affected.
 - "skip" — that person eats something else that night.
 
 Check the actual ingredient, not the name: coconut milk is not dairy; cream of tartar is not cream; fish sauce used as seasoning does not make a dish fish-centric. Your handling claims are re-verified by deterministic code against an allergen ontology — a plan with an unresolved allergy conflict will be rejected and returned to you with machine-readable violations, so get it right the first time.

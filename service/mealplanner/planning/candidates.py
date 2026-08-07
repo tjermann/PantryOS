@@ -29,7 +29,8 @@ def season_for_month(month: int, region: Literal["northern", "southern"]) -> Sea
 
 
 RejectReason = Literal[
-    "out_of_season", "lifecycle_cut", "missing_equipment", "avoided_protein"
+    "out_of_season", "lifecycle_cut", "missing_equipment", "avoided_protein",
+    "not_dinner",
 ]
 
 
@@ -43,7 +44,7 @@ def cap_candidates(
     candidates: list[Recipe],
     states: Mapping[str, HouseholdRecipeState],
     week_key: str,
-    cap: int = 120,
+    cap: int = 400,
 ) -> list[Recipe]:
     """Bound the pool sent to the model: keepers always make the cut; the rest
     rotate weekly (deterministic per week, different across weeks) so a large
@@ -82,6 +83,9 @@ def filter_candidates(
             continue
         if recipe.protein.lower() in avoided:
             rejected.append(RejectedCandidate(recipe.id, "avoided_protein"))
+            continue
+        if recipe.dish_type != "dinner":
+            rejected.append(RejectedCandidate(recipe.id, "not_dinner"))
             continue
         if "year_round" not in recipe.seasons and season not in recipe.seasons:
             rejected.append(RejectedCandidate(recipe.id, "out_of_season"))

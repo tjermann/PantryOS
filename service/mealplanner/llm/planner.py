@@ -58,46 +58,66 @@ def build_candidate_context(
     week_dates: list[date],
     learnings: str = "",
 ) -> str:
-    """Compact JSON context for the user turn. The system prompt is the frozen
-    cacheable prefix; everything volatile goes here."""
+    """Compact indexed context: one cheap row per candidate (no ingredient
+    dumps — the allergen math is deterministic code), with dietary conflicts
+    precomputed and annotated only on the recipes that have them. This is what
+    lets a very large library fit in one planning prompt."""
+    from ..allergen.backstop import _ingredient_conflicts, split_feasible
+
     perishables = {
         u.canonical_item_id: list(u.recipe_ids)
         for u in perishable_usage(candidates, items)
     }
+    people_by_id = {p.id: p for p in household.people}
     candidate_rows = []
     for r in candidates:
         state = states.get(r.id)
-        candidate_rows.append(
-            {
-                "recipe_id": r.id,
-                "title": r.title,
-                "protein": r.protein,
-                "cuisine": r.cuisine,
-                "effort": r.effort,
-                "serves": r.serves,
-                "published_time_min": r.published_time_min,
-                "real_time_min": state.real_time_min if state else None,
-                "last_made_at": state.last_made_at if state else None,
-                "lifecycle": state.lifecycle if state else "to_try",
-                "avg_rating": (
-                    round(sum(state.ratings) / len(state.ratings), 1)
-                    if state and state.ratings
-                    else None
-                ),
-                "long_lead": [
-                    {"step": f.step_order, "lead_min": f.lead_min}
-                    for f in detect_long_lead(r)
-                ],
-                "ingredient_items": [
-                    {
-                        "item": ing.canonical_item_id,
-                        "raw": ing.raw,
-                        "added_at_step": ing.added_at_step,
-                    }
-                    for ing in r.ingredients
-                ],
-            }
-        )
+        row = {
+            "recipe_id": r.id,
+            "title": r.title,
+            "protein": r.protein,
+            "cuisine": r.cuisine,
+            "effort": r.effort,
+            "serves": r.serves,
+            "published_time_min": r.published_time_min,
+            "real_time_min": state.real_time_min if state else None,
+            "last_made_at": state.last_made_at if state else None,
+            "lifecycle": state.lifecycle if state else "to_try",
+            "avg_rating": (
+                round(sum(state.ratings) / len(state.ratings), 1)
+                if state and state.ratings
+                else None
+            ),
+        }
+        lead = [
+            {"step": f.step_order, "lead_min": f.lead_min} for f in detect_long_lead(r)
+        ]
+        if lead:
+            row["long_lead"] = lead
+        recipe_perishables = [
+            item_id for item_id, rids in perishables.items() if r.id in rids
+        ]
+        if recipe_perishables:
+            row["perishables"] = recipe_perishables
+        # Precomputed dietary annotation — only for candidates with a conflict.
+        dietary = {}
+        for restriction in household.restrictions:
+            person = people_by_id.get(restriction.person_id)
+            if person is None or not person.eats_planned_dinners:
+                continue
+            conflicting, unknown = _ingredient_conflicts(r, restriction, items)
+            if conflicting or (unknown and restriction.severity == "allergy"):
+                dietary[restriction.person_id] = {
+                    "restriction": restriction.allergen_class
+                    or restriction.canonical_item_id,
+                    "severity": restriction.severity,
+                    "conflicts": [r.ingredients[i].raw for i in conflicting][:4],
+                    "unknown_ingredients": len(unknown),
+                    "split_possible": split_feasible(r, conflicting),
+                }
+        if dietary:
+            row["dietary"] = dietary
+        candidate_rows.append(row)
     context = {
         "household": {
             "people": [p.model_dump() for p in household.people],
