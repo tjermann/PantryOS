@@ -91,7 +91,7 @@ def discover_site(
     urls = sitemap_urls(site)
     # Newest first is typical sitemap order; shuffle-free determinism is fine.
     have = already_imported(user, base)
-    imported = tried = 0
+    imported = tried = consecutive_failures = 0
     for url in urls:
         if imported >= limit:
             break
@@ -109,9 +109,18 @@ def discover_site(
             slug = import_from_url(client, user, url, model=model, base=base)
             have.add(slug)
             imported += 1
+            consecutive_failures = 0
             print(f"  + {slug}", flush=True)
         except Exception as exc:
+            consecutive_failures += 1
             print(f"  ! {url}: {str(exc)[:80]}", flush=True)
+            if consecutive_failures >= 8:
+                print(
+                    f"  stopping {site}: {consecutive_failures} failures in a row "
+                    f"(usage limit or site block) — re-run discover-recipes later "
+                    f"to resume where this left off", flush=True,
+                )
+                break
         time.sleep(pace_s)
     return imported, tried
 

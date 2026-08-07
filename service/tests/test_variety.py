@@ -67,6 +67,25 @@ class TestValidateVariety:
         assert violations[0].severity == "error"
 
 
+class TestCapCandidates:
+    def test_keepers_always_survive_and_pool_rotates_weekly(self):
+        from mealplanner.planning.candidates import cap_candidates
+
+        recipes = [make_recipe(f"r{i}", protein=f"p{i}") for i in range(50)]
+        states = state_map([{"recipe_id": "r7", "lifecycle": "keeper"},
+                            {"recipe_id": "r33", "lifecycle": "keeper"}])
+        week1 = cap_candidates(recipes, states, "2026-W32", cap=10)
+        week2 = cap_candidates(recipes, states, "2026-W33", cap=10)
+        ids1, ids2 = {r.id for r in week1}, {r.id for r in week2}
+        assert len(week1) == 10
+        assert {"r7", "r33"} <= ids1 and {"r7", "r33"} <= ids2
+        assert ids1 != ids2  # rotation across weeks
+        # deterministic within a week
+        assert ids1 == {r.id for r in cap_candidates(recipes, states, "2026-W32", cap=10)}
+        # no cap when under the limit
+        assert len(cap_candidates(recipes[:5], states, "2026-W32", cap=10)) == 5
+
+
 class TestSeasonForMonth:
     def test_northern_meteorological(self):
         assert season_for_month(1, "northern") == "winter"

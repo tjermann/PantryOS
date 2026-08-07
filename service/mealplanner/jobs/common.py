@@ -9,7 +9,7 @@ from ..allergen.ontology import load_ontology
 from ..config import UserConfig, user_dir
 from ..llm.client import client_for_user
 from ..llm.planner import PlanRunResult, propose_plan
-from ..planning.candidates import filter_candidates
+from ..planning.candidates import cap_candidates, filter_candidates
 from ..planning.variety import VarietyRules
 from ..recipes.merged import load_full_library
 from ..schemas.domain import Recipe
@@ -54,7 +54,13 @@ def generate_plan(
     )
     if not candidates:
         raise RuntimeError("no candidate recipes (library empty or all filtered)")
-    print(f"[{user}] {len(candidates)} candidates ({len(rejected)} filtered out)")
+    pool = cap_candidates(candidates, states, iso_week_of(week_dates[0]))
+    if len(pool) < len(candidates):
+        print(f"[{user}] {len(candidates)} candidates, sending a weekly-rotating "
+              f"pool of {len(pool)} to the planner ({len(rejected)} filtered out)")
+    else:
+        print(f"[{user}] {len(candidates)} candidates ({len(rejected)} filtered out)")
+    candidates = pool
     client = client_for_user(config)
     result = propose_plan(
         client,

@@ -39,6 +39,28 @@ class RejectedCandidate:
     reason: RejectReason
 
 
+def cap_candidates(
+    candidates: list[Recipe],
+    states: Mapping[str, HouseholdRecipeState],
+    week_key: str,
+    cap: int = 120,
+) -> list[Recipe]:
+    """Bound the pool sent to the model: keepers always make the cut; the rest
+    rotate weekly (deterministic per week, different across weeks) so a large
+    library gets explored over time without blowing up the prompt."""
+    if len(candidates) <= cap:
+        return candidates
+    import hashlib
+
+    keepers = [
+        r for r in candidates
+        if (s := states.get(r.id)) is not None and s.lifecycle == "keeper"
+    ]
+    rest = [r for r in candidates if r not in keepers]
+    rest.sort(key=lambda r: hashlib.sha1(f"{week_key}:{r.id}".encode()).hexdigest())
+    return (keepers + rest)[:max(cap, len(keepers))]
+
+
 def filter_candidates(
     recipes: list[Recipe],
     states: Mapping[str, HouseholdRecipeState],
