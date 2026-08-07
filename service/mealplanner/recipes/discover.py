@@ -126,16 +126,29 @@ def discover_site(
 
 
 def discover_all(
-    client, user: str, config: UserConfig, limit_per_site: int,
-    base: Path | None = None,
+    client, user: str, config: UserConfig, limit_per_site: int | None = None,
+    base: Path | None = None, total_limit: int | None = None,
 ) -> int:
+    """Import from every configured site. Give either a per-site limit or a
+    total budget split evenly across sites (leftover capacity rolls forward)."""
+    sites = config.recipe_sources
     total = 0
-    for site in config.recipe_sources:
+    remaining = total_limit
+    for i, site in enumerate(sites):
+        if remaining is not None:
+            sites_left = len(sites) - i
+            site_limit = max(1, -(-remaining // sites_left))  # ceil split
+        else:
+            site_limit = limit_per_site or 15
+        if remaining is not None and remaining <= 0:
+            break
         print(f"[{user}] discovering from {source_domain(site)}…", flush=True)
         imported, tried = discover_site(
-            client, user, site, limit_per_site, config.model, base
+            client, user, site, site_limit, config.model, base
         )
         print(f"[{user}] {source_domain(site)}: {imported} imported "
               f"({tried} pages checked)", flush=True)
         total += imported
+        if remaining is not None:
+            remaining -= imported
     return total

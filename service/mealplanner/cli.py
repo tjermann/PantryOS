@@ -155,20 +155,25 @@ def add_recipe_cmd(
 
 @app.command("discover-recipes")
 def discover_recipes_cmd(
-    user: str = typer.Option(...),
-    limit: int = typer.Option(15, help="Max new recipes to import per source site"),
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+    limit: int = typer.Option(None, help="Max new recipes per source site"),
+    total: int = typer.Option(None, help="Total budget across all sites (e.g. weekly 25)"),
 ):
     """Crawl the household's favorite recipe sites and import new recipes."""
     from .llm.client import client_for_user
     from .recipes.discover import discover_all
 
-    config = load_user_config(user)
-    if not config.recipe_sources:
-        typer.echo("No recipe_sources configured — add sites to config.yaml first.")
-        raise typer.Exit(1)
-    client = client_for_user(config)
-    total = discover_all(client, user, config, limit)
-    typer.echo(f"Imported {total} new recipes across {len(config.recipe_sources)} sites.")
+    def _one(u: str) -> int:
+        config = load_user_config(u)
+        if not config.recipe_sources:
+            print(f"[{u}] no recipe_sources configured; skipping")
+            return 0
+        client = client_for_user(config)
+        count = discover_all(client, u, config, limit_per_site=limit, total_limit=total)
+        print(f"[{u}] imported {count} new recipes")
+        return 0
+
+    _run_for_each(_users(user, all_users), _one)
 
 
 @app.command()
@@ -350,6 +355,7 @@ def install_cron_cmd(
     python = Path(sys.executable).resolve()
     prefix = f"cd {SERVICE_ROOT} && {python} -m mealplanner"
     wanted = {
+        "pantryos-discover": f"0 20 * * 4 {prefix} discover-recipes --all-users --total 25 >> var/log/discover.log 2>&1",
         "pantryos-propose": f"15 6 * * * {prefix} run-propose --all-users >> var/log/propose.log 2>&1",
         "pantryos-iterate": f"0 9,12,15,18 * * * {prefix} run-iterate --all-users >> var/log/iterate.log 2>&1",
         "pantryos-weekly": f"15 6 * * * {prefix} run-weekly --all-users >> var/log/weekly.log 2>&1",
