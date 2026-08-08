@@ -155,6 +155,15 @@ class StateStore:
             return []
         return list((yaml.safe_load(path.read_text()) or {}).get(iso_week, []))
 
+    def set_exclusions(self, iso_week: str, items: list[str]) -> None:
+        """Replace this week's 'we have enough' set (checkbox form submit)."""
+        path = self.root / "exclusions.yaml"
+        data = (yaml.safe_load(path.read_text()) or {}) if path.exists() else {}
+        data[iso_week] = sorted({i.strip() for i in items if i.strip()})
+        for old in sorted(data)[:-8]:
+            data.pop(old, None)
+        _atomic_write(path, yaml.safe_dump(data, sort_keys=True))
+
     def toggle_exclusion(self, iso_week: str, item: str) -> bool:
         """Remove/restore one item for one week; returns True if now excluded."""
         path = self.root / "exclusions.yaml"

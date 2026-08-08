@@ -167,6 +167,18 @@ components, else null), and unattended_steps (objects {"step": n, "minutes": m}
 for hands-off waits like marinating/baking/simmering)."""
 
 
+def _structured_ingredient(text: str, group: str | None) -> dict:
+    """Parse quantity/unit so lines aggregate across recipes."""
+    from ..grocery.parse import parse_qty_unit
+
+    qty, unit, name = parse_qty_unit(text)
+    return {
+        "canonical_item_id": match_ingredient_text(text) or match_ingredient_text(name),
+        "raw": text, "qty": qty, "unit": unit, "prep_note": None,
+        "is_optional": False, "group": group, "added_at_step": None,
+    }
+
+
 def import_from_url(
     client: anthropic.Anthropic,
     user: str,
@@ -257,11 +269,7 @@ def import_from_url(
         "dish_type": cls.dish_type,
         "equipment": equipment,
         "ingredients": [
-            {
-                "canonical_item_id": match_ingredient_text(text),
-                "raw": text, "qty": None, "unit": None, "prep_note": None,
-                "is_optional": False, "group": group, "added_at_step": None,
-            }
+            _structured_ingredient(text, group)
             for text, group in zip(data["ingredients"], groups)
         ],
         "steps": [

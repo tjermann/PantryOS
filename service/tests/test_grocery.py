@@ -97,8 +97,12 @@ class TestBuildGroceryList:
             pantry=[PantryItem(canonical_item_id="rice", qty=5, unit="cup", confidence="confirmed")],
         )
         assert line_for(result, "rice") is None
-        mystery_line = next(l for l in result.lines if l.display_name == "1 jar special sauce")
+        # Unmatched items are never dropped — now parsed into name + quantity.
+        mystery_line = next(
+            l for l in result.lines if "special sauce" in l.display_name.lower()
+        )
         assert mystery_line.section == "other"
+        assert mystery_line.qty == 1
 
     def test_standing_lines_and_sections(self):
         result = build(
@@ -157,6 +161,25 @@ class TestBuildGroceryList:
         # restock bypasses the staple filter — we explicitly ran out
         assert any(l.origin == "restock" for l in result.lines)
         assert "Olive oil" in result.assumed_on_hand or "2 tbsp olive oil" in str(result.assumed_on_hand)
+
+    def test_unmatched_ingredients_aggregate_by_name(self):
+        from mealplanner.grocery.parse import aggregation_key, parse_qty_unit
+
+        assert parse_qty_unit("2 lemons, juiced") == (2, "each", "lemons")
+        assert parse_qty_unit("1 lemon") == (1, "each", "lemon")
+        assert parse_qty_unit("1 1/2 lb shrimp, peeled") == (1.5, "lb", "shrimp")
+        assert parse_qty_unit("1/4 cup olive oil") == (0.25, "cup", "olive oil")
+        assert aggregation_key("2 Lemons") == aggregation_key("lemon")
+
+        a = make_recipe("a", ingredients=[ing(None, "2 lemons, juiced", None, None)])
+        b = make_recipe("b", ingredients=[ing(None, "1 lemon", None, None)])
+        result = build_grocery_list(
+            recipes=[(a, 4), (b, 4)], pantry=[], standing=[], items=ITEMS,
+            budget_enabled=False, budget_cents=None,
+        )
+        lemons = [l for l in result.lines if "lemon" in l.display_name.lower()]
+        assert len(lemons) == 1, [l.display_name for l in result.lines]
+        assert lemons[0].qty == 3
 
     def test_household_exclusions_drop_items_for_the_week(self):
         result = build_grocery_list(

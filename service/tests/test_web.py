@@ -85,16 +85,17 @@ def test_grocery_toggle_round_trip(client, users_base):
     store = StateStore(user_dir("test", users_base))
     assert store.load_exclusions("2026-W32") == []
 
-    r = client.post("/grocery/test", data={"t": token, "item": "Jasmine rice"},
+    r = client.post("/grocery/test",
+                    data={"t": token, "have": ["Jasmine rice", "Lemons"]},
                     follow_redirects=False)
     assert r.status_code == 303
-    assert store.load_exclusions("2026-W32") == ["Jasmine rice"]
+    assert store.load_exclusions("2026-W32") == ["Jasmine rice", "Lemons"]
 
-    client.post("/grocery/test", data={"t": token, "item": "Jasmine rice"},
-                follow_redirects=False)
-    assert store.load_exclusions("2026-W32") == []  # toggles back
+    # Unchecking everything = submit with no boxes ticked
+    client.post("/grocery/test", data={"t": token}, follow_redirects=False)
+    assert store.load_exclusions("2026-W32") == []
 
-    assert client.post("/grocery/test", data={"t": "forged", "item": "x"},
+    assert client.post("/grocery/test", data={"t": "forged", "have": "x"},
                        follow_redirects=False).status_code == 403
 
 

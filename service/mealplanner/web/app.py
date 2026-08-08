@@ -165,7 +165,18 @@ def create_app(base: Path | None = None) -> FastAPI:
             if grocery is not None:
                 SECTION_ORDER = ["produce", "meat_seafood", "dairy", "bakery",
                                  "frozen", "pantry", "other"]
+                excluded_now = set(store.load_exclusions(iso_week))
                 rows = []
+
+                def _checkbox(name: str, qty_label: str, checked: bool) -> str:
+                    mark = " checked" if checked else ""
+                    style = ("color:#999;text-decoration:line-through" if checked else "")
+                    return (
+                        f"<label style='display:block;margin:2px 0;font-size:14px;{style}'>"
+                        f"<input type='checkbox' name='have' value=\"{name}\"{mark} "
+                        f"style='width:auto;margin-right:8px'>{name}{qty_label}</label>"
+                    )
+
                 for section in SECTION_ORDER:
                     lines = grocery.sections.get(section) or []
                     if not lines:
@@ -174,35 +185,27 @@ def create_app(base: Path | None = None) -> FastAPI:
                                 f"color:#c96f4a;text-transform:uppercase;'>"
                                 f"{section.replace('_', ' ')}</h3>")
                     for line in lines:
-                        qty = ""
-                        if line.qty is not None:
-                            unit = f" {line.unit}" if line.unit and line.unit != "each" else ""
-                            qty = f" — {line.qty:g}{unit}"
-                        rows.append(
-                            f"<form method='post' action='/grocery/{user}' "
-                            f"style='margin:1px 0'>"
-                            f"<input type='hidden' name='t' value='{t}'>"
-                            f"<input type='hidden' name='item' value=\"{line.display_name}\">"
-                            f"<button style='padding:1px 7px;font-size:12px;background:#999'>"
-                            f"have enough</button> {line.display_name}{qty}</form>"
-                        )
-                removed_rows = "".join(
-                    f"<form method='post' action='/grocery/{user}' style='margin:1px 0'>"
-                    f"<input type='hidden' name='t' value='{t}'>"
-                    f"<input type='hidden' name='item' value=\"{name}\">"
-                    f"<button style='padding:1px 7px;font-size:12px'>put back</button> "
-                    f"<span style='color:#999;text-decoration:line-through'>{name}</span></form>"
-                    for name in grocery.removed_by_household
-                )
+                        from ..grocery.parse import format_qty
+
+                        pretty = format_qty(line.qty, line.unit)
+                        rows.append(_checkbox(
+                            line.display_name, f" — {pretty}" if pretty else "", False
+                        ))
+                if grocery.removed_by_household:
+                    rows.append("<h3 style='font-size:13px;margin:12px 0 2px;color:#999;'>"
+                                "MARKED AS HAVE ENOUGH</h3>")
+                    rows.extend(_checkbox(n, "", True)
+                                for n in grocery.removed_by_household)
                 parts.append(
-                    "<h2>This week's grocery list</h2><div class='card'>"
-                    "<p><small>Tap <em>have enough</em> on anything you already have — "
-                    "it won't be bought this week (staples and permanent items are "
-                    "handled separately below).</small></p>"
+                    f"<h2>This week's grocery list</h2><div class='card'>"
+                    f"<p><small>Check anything you already have enough of, then hit "
+                    f"Update — checked items won't be bought this week. (Permanent "
+                    f"staples are handled separately below.)</small></p>"
+                    f"<form method='post' action='/grocery/{user}'>"
+                    f"<input type='hidden' name='t' value='{t}'>"
                     + "".join(rows)
-                    + (f"<h3 style='font-size:13px;margin:12px 0 2px;color:#999;'>"
-                       f"REMOVED THIS WEEK</h3>{removed_rows}" if removed_rows else "")
-                    + "</div>"
+                    + "<button style='margin-top:10px'>Update list</button>"
+                    "</form></div>"
                 )
 
         staples_list = store.load_staples()
@@ -323,16 +326,18 @@ planner up to run <code>mealplanner setup</code>.</small></p>
         return PAGE.format(body="".join(parts))
 
     @app.post("/grocery/{user}")
-    def grocery_toggle(user: str, t: str = Form(...), item: str = Form(...)):
+    def grocery_update(
+        user: str, t: str = Form(...), have: list[str] = Form(default=[]),
+    ):
         _check(user, t, base)
         store = StateStore(user_dir(user, base))
         latest = store.latest_plan()
         if latest is None:
             raise HTTPException(400, "no plan to edit")
         iso_week, _ = latest
-        excluded = store.toggle_exclusion(iso_week, item)
-        msg = (f"'{item}' won't be bought this week" if excluded
-               else f"'{item}' is back on the list")
+        store.set_exclusions(iso_week, have)
+        msg = (f"{len(have)} item(s) skipped this week" if have
+               else "Buying everything on the list")
         return RedirectResponse(f"/u/{user}?t={t}&saved={msg.replace(' ', '+')}",
                                 status_code=303)
 

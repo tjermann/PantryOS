@@ -39,11 +39,10 @@ _env = Environment(loader=FunctionLoader(_load_template), autoescape=False)
 
 
 def _fmt_qty(qty: float | None, unit: str | None) -> str:
-    if qty is None:
-        return ""
-    rounded = f"{qty:g}"
-    u = f" {unit}" if unit and unit != "each" else ""
-    return f" — {rounded}{u}"
+    from ..grocery.parse import format_qty
+
+    pretty = format_qty(qty, unit)
+    return f" — {pretty}" if pretty else ""
 
 
 def build_weekly_email_context(

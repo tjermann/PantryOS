@@ -96,17 +96,38 @@ def build_grocery_list(
             if ing.is_optional:
                 continue
             if ing.canonical_item_id is None or ing.qty is None:
-                # Unmatched or unquantified: keep verbatim, never silently dropped.
-                unmatched.append(
-                    GroceryLine(
-                        canonical_item_id=ing.canonical_item_id,
-                        display_name=ing.raw,
-                        qty=ing.qty * scale if ing.qty is not None else None,
-                        unit=ing.unit,
-                        section="other",
-                        origin="recipe",
-                        source_recipe_ids=[recipe.id],
+                # Unmatched to the ontology: still aggregate by normalized name
+                # so '2 lemons' and '1 lemon' become one line of 3.
+                from .parse import aggregation_key, compatible_units, parse_qty_unit
+
+                qty, unit, name = (ing.qty, ing.unit, ing.raw)
+                if qty is None:
+                    qty, unit, name = parse_qty_unit(ing.raw)
+                key = f"~{aggregation_key(name)}"
+                existing = lines.get(key)
+                scaled = qty * scale if qty is not None else None
+                if existing is not None:
+                    if (existing.qty is not None and scaled is not None
+                            and compatible_units(existing.unit, unit)):
+                        converted = convert(scaled, unit or "each", existing.unit or "each")
+                        if converted is not None:
+                            existing.qty += converted
+                            existing.source_recipe_ids.append(recipe.id)
+                            continue
+                    # Same item, incompatible units — keep the second verbatim.
+                    unmatched.append(
+                        GroceryLine(
+                            canonical_item_id=None, display_name=ing.raw,
+                            qty=scaled, unit=unit, section="other",
+                            origin="recipe", source_recipe_ids=[recipe.id],
+                        )
                     )
+                    continue
+                lines[key] = GroceryLine(
+                    canonical_item_id=None,
+                    display_name=name if qty is not None else ing.raw,
+                    qty=scaled, unit=unit, section="other",
+                    origin="recipe", source_recipe_ids=[recipe.id],
                 )
                 continue
             item = items.get(ing.canonical_item_id)
