@@ -19,7 +19,7 @@ from ..schemas.domain import (
     StandingOrderLine,
     StoreSection,
 )
-from .units import convert, normalize_unit
+from .units import convert, dimension_of, normalize_unit
 
 Origin = Literal["recipe", "standing", "restock"]
 
@@ -133,7 +133,10 @@ def build_grocery_list(
             item = items.get(ing.canonical_item_id)
             unit = normalize_unit(ing.unit)
             qty = ing.qty * scale
-            existing = lines.get(ing.canonical_item_id)
+            # Key by (item, dimension) so '2 tbsp dill' and '1 tbsp dill' merge
+            # instead of the second spilling into a duplicate row.
+            key = f"{ing.canonical_item_id}|{dimension_of(unit)}"
+            existing = lines.get(key)
             if existing is not None and existing.qty is not None and existing.unit is not None:
                 converted = convert(qty, unit, existing.unit)
                 if converted is not None:
@@ -141,7 +144,7 @@ def build_grocery_list(
                     existing.source_recipe_ids.append(recipe.id)
                     continue
             if existing is None:
-                lines[ing.canonical_item_id] = GroceryLine(
+                lines[key] = GroceryLine(
                     canonical_item_id=ing.canonical_item_id,
                     display_name=item.name if item else ing.raw,
                     qty=qty,
@@ -165,18 +168,48 @@ def build_grocery_list(
                     )
                 )
 
+    # 1b. Herbs are bought by the bunch, however recipes measure them: collapse
+    # every measure of one herb into a single shopping line.
+    # Explicit bunch counts are respected ('1 bunch' + '1 bunch' = 2); loose
+    # measures (sprigs, tbsp, cups) fold into the bunches you're already buying,
+    # with a floor of one.
+    import math
+
+    herb_lines: dict[str, GroceryLine] = {}
+    herb_bunches: dict[str, float] = {}
+    for key in list(lines):
+        line = lines[key]
+        item = items.get(line.canonical_item_id or "")
+        if item is None or item.perishability not in ("tender_herb", "hardy_herb"):
+            continue
+        bunches = line.qty or 0.0 if normalize_unit(line.unit) == "bunch" else 0.0
+        herb_bunches[item.id] = herb_bunches.get(item.id, 0.0) + bunches
+        primary = herb_lines.get(item.id)
+        if primary is None:
+            herb_lines[item.id] = line
+        else:
+            primary.source_recipe_ids.extend(line.source_recipe_ids)
+            lines.pop(key)
+    for item_id, line in herb_lines.items():
+        line.unit = "bunch"
+        line.qty = float(max(1, math.ceil(herb_bunches.get(item_id, 0.0) - 0.01)))
+
     # 2. Subtract confirmed pantry stock.
     for pantry_item in pantry:
         if pantry_item.confidence != "confirmed":
             continue
-        line = lines.get(pantry_item.canonical_item_id)
-        if line is None or line.qty is None or line.unit is None:
-            continue
-        on_hand = convert(pantry_item.qty, pantry_item.unit, line.unit)
-        if on_hand is None:
-            continue
-        line.qty = max(0.0, line.qty - on_hand)
-        line.pantry_adjusted = True
+        # Lines are keyed by (item, dimension), so match on the item id itself.
+        for line in lines.values():
+            if line.canonical_item_id != pantry_item.canonical_item_id:
+                continue
+            if line.qty is None or line.unit is None:
+                continue
+            on_hand = convert(pantry_item.qty, pantry_item.unit, line.unit)
+            if on_hand is None:
+                continue
+            line.qty = max(0.0, line.qty - on_hand)
+            line.pantry_adjusted = True
+            break
 
     # 3. Standing lines.
     standing_lines: list[GroceryLine] = []

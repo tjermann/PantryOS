@@ -181,6 +181,30 @@ class TestBuildGroceryList:
         assert len(lemons) == 1, [l.display_name for l in result.lines]
         assert lemons[0].qty == 3
 
+    def test_herbs_collapse_to_one_bunch_across_measures(self):
+        a = make_recipe("a", ingredients=[ing("dill", "1 1/2 sprigs dill", 1.5, "sprigs")])
+        b = make_recipe("b", ingredients=[ing("dill", "2 tbsp fresh dill", 2, "tbsp")])
+        c = make_recipe("c", ingredients=[ing("dill", "1 tbsp dill", 1, "tbsp")])
+        result = build_grocery_list(
+            recipes=[(a, 4), (b, 4), (c, 4)], pantry=[], standing=[], items=ITEMS,
+            budget_enabled=False, budget_cents=None,
+        )
+        dill = [l for l in result.lines if (l.canonical_item_id == "dill")]
+        assert len(dill) == 1, [l.display_name for l in result.lines]
+        assert dill[0].unit == "bunch" and dill[0].qty == 1
+        assert set(dill[0].source_recipe_ids) == {"a", "b", "c"}
+
+    def test_same_item_same_dimension_merges(self):
+        a = make_recipe("a", ingredients=[ing("chicken-thigh", "1 lb chicken", 1, "lb")])
+        b = make_recipe("b", ingredients=[ing("chicken-thigh", "8 oz chicken", 8, "oz")])
+        result = build_grocery_list(
+            recipes=[(a, 4), (b, 4)], pantry=[], standing=[], items=ITEMS,
+            budget_enabled=False, budget_cents=None,
+        )
+        chicken = [l for l in result.lines if l.canonical_item_id == "chicken-thigh"]
+        assert len(chicken) == 1
+        assert chicken[0].qty == pytest.approx(1.5)  # 1 lb + 8 oz
+
     def test_household_exclusions_drop_items_for_the_week(self):
         result = build_grocery_list(
             recipes=[(RICE_BOWL, 4)], pantry=[], standing=[], items=ITEMS,
