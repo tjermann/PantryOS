@@ -37,6 +37,7 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
         budget_cents=config.household.budget_cents_weekly,
         substitutions=config.household.item_substitutions,
         staples=store.load_staples(),
+        excluded=store.load_exclusions(iso_week_of(week_dates[0])),
     )
     feedback_url = None
     recipe_links: dict[str, str] = {}

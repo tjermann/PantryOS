@@ -158,6 +158,17 @@ class TestBuildGroceryList:
         assert any(l.origin == "restock" for l in result.lines)
         assert "Olive oil" in result.assumed_on_hand or "2 tbsp olive oil" in str(result.assumed_on_hand)
 
+    def test_household_exclusions_drop_items_for_the_week(self):
+        result = build_grocery_list(
+            recipes=[(RICE_BOWL, 4)], pantry=[], standing=[], items=ITEMS,
+            budget_enabled=False, budget_cents=None,
+            excluded=["Jasmine rice", "  CILANTRO "],  # case/space tolerant
+        )
+        names = [l.display_name for l in result.lines]
+        assert "Jasmine rice" not in names and "Cilantro" not in names
+        assert any("Chicken" in n for n in names)  # untouched items still bought
+        assert set(result.removed_by_household) == {"Jasmine rice", "Cilantro"}
+
     def test_budget_only_when_fully_priced(self):
         priced = make_recipe(
             "priced",

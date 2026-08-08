@@ -140,6 +140,9 @@ def run_weekly(
         budget_cents=config.household.budget_cents_weekly,
         substitutions=config.household.item_substitutions,
         staples=store.load_staples(),
+        excluded=store.load_exclusions(
+            f"{week_dates[0].isocalendar().year}-W{week_dates[0].isocalendar().week:02d}"
+        ),
     )
 
     carts: list[dict] = []

@@ -77,6 +77,27 @@ def test_prefs_update_budget_and_learnings(client, users_base):
     assert "more fish please" in learnings
 
 
+def test_grocery_toggle_round_trip(client, users_base):
+    from mealplanner.config import user_dir
+
+    url = feedback_url("test", "", users_base)
+    token = url.split("t=")[1]
+    store = StateStore(user_dir("test", users_base))
+    assert store.load_exclusions("2026-W32") == []
+
+    r = client.post("/grocery/test", data={"t": token, "item": "Jasmine rice"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    assert store.load_exclusions("2026-W32") == ["Jasmine rice"]
+
+    client.post("/grocery/test", data={"t": token, "item": "Jasmine rice"},
+                follow_redirects=False)
+    assert store.load_exclusions("2026-W32") == []  # toggles back
+
+    assert client.post("/grocery/test", data={"t": "forged", "item": "x"},
+                       follow_redirects=False).status_code == 403
+
+
 def test_tokens_are_per_user(client, users_base):
     # A token minted for one user must not authorize another path.
     url = feedback_url("test", "", users_base)

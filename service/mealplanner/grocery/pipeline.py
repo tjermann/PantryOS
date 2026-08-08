@@ -53,6 +53,8 @@ class GroceryListResult:
     budget: BudgetStatus
     # Staple items assumed on hand and therefore not purchased this week.
     assumed_on_hand: list[str] = field(default_factory=list)
+    # Items the household removed during review ("we have enough").
+    removed_by_household: list[str] = field(default_factory=list)
 
 
 def _is_staple(name: str, staples: list[str]) -> bool:
@@ -71,11 +73,13 @@ def build_grocery_list(
     budget_cents: int | None,
     substitutions: Mapping[str, str] | None = None,
     staples: list[str] | None = None,
+    excluded: list[str] | None = None,
 ) -> GroceryListResult:
     lines: dict[str, GroceryLine] = {}
     unmatched: list[GroceryLine] = []
     substitutions = substitutions or {}
     staples = staples or []
+    excluded_set = {e.strip().lower() for e in (excluded or [])}
 
     # 1. Aggregate matched ingredients.
     for recipe, servings in recipes:
@@ -177,9 +181,13 @@ def build_grocery_list(
     # Staples are assumed on hand: dropped from every purchase EXCEPT explicit
     # restock lines ("we ran out"), which always buy.
     assumed: list[str] = []
+    removed: list[str] = []
     all_lines = []
     for line in candidate_lines:
-        if line.origin != "restock" and _is_staple(line.display_name, staples):
+        if line.display_name.strip().lower() in excluded_set:
+            if line.display_name not in removed:
+                removed.append(line.display_name)
+        elif line.origin != "restock" and _is_staple(line.display_name, staples):
             if line.display_name not in assumed:
                 assumed.append(line.display_name)
         else:
@@ -214,4 +222,5 @@ def build_grocery_list(
             under_budget_cents=under_budget_cents,
         ),
         assumed_on_hand=assumed,
+        removed_by_household=removed,
     )

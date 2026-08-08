@@ -153,6 +153,7 @@ def build_weekly_email_context(
         "week_label": week_start.strftime("week of %B %-d"),
         "proposal_note": proposal_note,
         "assumed_on_hand": ", ".join(grocery.assumed_on_hand) or None,
+        "removed_by_household": ", ".join(grocery.removed_by_household) or None,
         "entries": entries,
         "long_lead_notes": long_lead_notes,
         "perishable_notes": perishable_notes,

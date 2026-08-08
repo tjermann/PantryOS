@@ -153,6 +153,58 @@ def create_app(base: Path | None = None) -> FastAPI:
         else:
             parts.append("<p><small>No plan yet — check back after the next weekly email.</small></p>")
 
+        # --- this week's grocery list, prunable during review ---
+        if latest:
+            iso_week, plan = latest
+            try:
+                from ..grocery.forweek import grocery_for_plan
+
+                grocery = grocery_for_plan(user, config, store, plan, iso_week, base)
+            except Exception:
+                grocery = None
+            if grocery is not None:
+                SECTION_ORDER = ["produce", "meat_seafood", "dairy", "bakery",
+                                 "frozen", "pantry", "other"]
+                rows = []
+                for section in SECTION_ORDER:
+                    lines = grocery.sections.get(section) or []
+                    if not lines:
+                        continue
+                    rows.append(f"<h3 style='font-size:13px;margin:10px 0 2px;"
+                                f"color:#c96f4a;text-transform:uppercase;'>"
+                                f"{section.replace('_', ' ')}</h3>")
+                    for line in lines:
+                        qty = ""
+                        if line.qty is not None:
+                            unit = f" {line.unit}" if line.unit and line.unit != "each" else ""
+                            qty = f" — {line.qty:g}{unit}"
+                        rows.append(
+                            f"<form method='post' action='/grocery/{user}' "
+                            f"style='margin:1px 0'>"
+                            f"<input type='hidden' name='t' value='{t}'>"
+                            f"<input type='hidden' name='item' value=\"{line.display_name}\">"
+                            f"<button style='padding:1px 7px;font-size:12px;background:#999'>"
+                            f"have enough</button> {line.display_name}{qty}</form>"
+                        )
+                removed_rows = "".join(
+                    f"<form method='post' action='/grocery/{user}' style='margin:1px 0'>"
+                    f"<input type='hidden' name='t' value='{t}'>"
+                    f"<input type='hidden' name='item' value=\"{name}\">"
+                    f"<button style='padding:1px 7px;font-size:12px'>put back</button> "
+                    f"<span style='color:#999;text-decoration:line-through'>{name}</span></form>"
+                    for name in grocery.removed_by_household
+                )
+                parts.append(
+                    "<h2>This week's grocery list</h2><div class='card'>"
+                    "<p><small>Tap <em>have enough</em> on anything you already have — "
+                    "it won't be bought this week (staples and permanent items are "
+                    "handled separately below).</small></p>"
+                    + "".join(rows)
+                    + (f"<h3 style='font-size:13px;margin:12px 0 2px;color:#999;'>"
+                       f"REMOVED THIS WEEK</h3>{removed_rows}" if removed_rows else "")
+                    + "</div>"
+                )
+
         staples_list = store.load_staples()
         staple_rows = "".join(
             f"<li>{s} — "
@@ -269,6 +321,20 @@ planner up to run <code>mealplanner setup</code>.</small></p>
             body = entry.markdown_path.read_text()
             parts.append(f"<pre style='white-space:pre-wrap'>{body}</pre>")
         return PAGE.format(body="".join(parts))
+
+    @app.post("/grocery/{user}")
+    def grocery_toggle(user: str, t: str = Form(...), item: str = Form(...)):
+        _check(user, t, base)
+        store = StateStore(user_dir(user, base))
+        latest = store.latest_plan()
+        if latest is None:
+            raise HTTPException(400, "no plan to edit")
+        iso_week, _ = latest
+        excluded = store.toggle_exclusion(iso_week, item)
+        msg = (f"'{item}' won't be bought this week" if excluded
+               else f"'{item}' is back on the list")
+        return RedirectResponse(f"/u/{user}?t={t}&saved={msg.replace(' ', '+')}",
+                                status_code=303)
 
     @app.post("/staples/{user}")
     def staples(user: str, t: str = Form(...), action: str = Form(...),

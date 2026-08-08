@@ -146,6 +146,32 @@ class StateStore:
             digest.update(config_path.read_bytes())
         return digest.hexdigest()
 
+    # -- weekly grocery exclusions ------------------------------------------
+    def load_exclusions(self, iso_week: str) -> list[str]:
+        """Items the household removed from THIS week's list during review
+        ('we already have enough') — distinct from permanent staples."""
+        path = self.root / "exclusions.yaml"
+        if not path.exists():
+            return []
+        return list((yaml.safe_load(path.read_text()) or {}).get(iso_week, []))
+
+    def toggle_exclusion(self, iso_week: str, item: str) -> bool:
+        """Remove/restore one item for one week; returns True if now excluded."""
+        path = self.root / "exclusions.yaml"
+        data = (yaml.safe_load(path.read_text()) or {}) if path.exists() else {}
+        week = list(data.get(iso_week, []))
+        excluded = item not in week
+        if excluded:
+            week.append(item)
+        else:
+            week.remove(item)
+        data[iso_week] = week
+        # Keep only recent weeks so the file doesn't grow forever.
+        for old in sorted(data)[:-8]:
+            data.pop(old, None)
+        _atomic_write(path, yaml.safe_dump(data, sort_keys=True))
+        return excluded
+
     # -- pantry staples -----------------------------------------------------
     def load_staples(self) -> list[str]:
         """Things assumed on hand (salt, olive oil, spices…): matching grocery

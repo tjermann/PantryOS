@@ -17,6 +17,7 @@ No-waste pairings: {{ perishable_notes }}
 GROCERY LIST
 {% if budget_line %}{{ budget_line }}
 {% endif %}{% if assumed_on_hand %}Assumed already in your pantry (not bought): {{ assumed_on_hand }}
+{% endif %}{% if removed_by_household %}Removed during review (you have enough): {{ removed_by_household }}
 {% endif %}{% for section in grocery_sections %}
 [{{ section.label }}]
 {% for line in section.lines %}  [ ] {{ line.text }}{% if line.tag %} ({{ line.tag }}){% endif %}
