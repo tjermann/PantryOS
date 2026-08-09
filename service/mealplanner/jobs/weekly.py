@@ -56,6 +56,7 @@ def run_weekly(
         config.source_policy, config.recipe_sources,
     )
     recipes_by_id = {e.recipe.id: e.recipe for e in library}
+    sources = {e.recipe.id: e.source for e in library if e.source}
     states = store.load_recipe_states()
 
     week_dates = next_week_dates(today, config.household.dinners_per_week)
@@ -182,6 +183,7 @@ def run_weekly(
         feedback_url=feedback_url,
         recipe_links=recipe_links,
         rating_links=rating_links,
+        sources=sources,
     )
     text, html = render_weekly_email(context)
 

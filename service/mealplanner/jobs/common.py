@@ -36,7 +36,7 @@ def generate_plan(
     week_dates: list[date],
     base: Path | None = None,
     revision_context: str | None = None,
-) -> tuple[PlanRunResult, dict[str, Recipe]]:
+) -> tuple[PlanRunResult, dict[str, Recipe], dict[str, str]]:
     items = load_ontology()
     from ..recipes.merged import apply_source_policy
 
@@ -48,6 +48,7 @@ def generate_plan(
         print(f"[{user}] exclusive sources: {len(library)} recipes from "
               f"{len(config.recipe_sources)} configured sites")
     recipes_by_id = {e.recipe.id: e.recipe for e in library}
+    sources = {e.recipe.id: e.source for e in library if e.source}
     states = store.load_recipe_states()
     candidates, rejected = filter_candidates(
         [e.recipe for e in library], states, config.household, week_dates[0].month
@@ -79,7 +80,7 @@ def generate_plan(
     )
     if result.dropped_recipe_ids:
         print(f"[{user}] dropped unrepairable entries: {result.dropped_recipe_ids}")
-    return result, recipes_by_id
+    return result, recipes_by_id, sources
 
 
 def plan_payload(result: PlanRunResult, iso_week: str, **extra) -> dict:

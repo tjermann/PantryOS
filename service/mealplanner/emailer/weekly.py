@@ -38,6 +38,17 @@ def _load_template(name: str) -> str | None:
 _env = Environment(loader=FunctionLoader(_load_template), autoescape=False)
 
 
+def _source_label(source: str | None) -> str | None:
+    """'https://www.cookieandkate.com/x/' -> 'cookieandkate.com'."""
+    if not source:
+        return None
+    if source.startswith("http"):
+        from urllib.parse import urlparse
+
+        return urlparse(source).netloc.removeprefix("www.") or source
+    return source
+
+
 def _fmt_qty(qty: float | None, unit: str | None) -> str:
     from ..grocery.parse import format_qty
 
@@ -58,7 +69,9 @@ def build_weekly_email_context(
     recipe_links: Mapping[str, str] | None = None,
     rating_links: Mapping[str, list[tuple[int, str]]] | None = None,
     proposal_note: str | None = None,
+    sources: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
+    sources = sources or {}
     recipe_links = recipe_links or {}
     rating_links = rating_links or {}
     people = {p.id: p.name for p in household.people}
@@ -101,6 +114,8 @@ def build_weekly_email_context(
                 "handling": handling,
                 "url": recipe_links.get(recipe.id),
                 "stars": rating_links.get(recipe.id, []),
+                "source": sources.get(recipe.id),
+                "source_label": _source_label(sources.get(recipe.id)),
             }
         )
 

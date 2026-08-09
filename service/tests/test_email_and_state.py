@@ -63,6 +63,26 @@ def make_plan_result() -> PlanRunResult:
     )
 
 
+def test_email_shows_recipe_sources():
+    from mealplanner.emailer.weekly import _source_label
+
+    assert _source_label("https://www.cookieandkate.com/x/") == "cookieandkate.com"
+    assert _source_label("https://beginwithbalance.com/y") == "beginwithbalance.com"
+    assert _source_label("PantryOS starter") == "PantryOS starter"
+    assert _source_label(None) is None
+
+    plan = make_plan_result()
+    grocery = build_grocery_list(recipes=[(BRINED, 4)], pantry=[], standing=[],
+                                 items=ITEMS, budget_enabled=False, budget_cents=None)
+    context = build_weekly_email_context(
+        plan=plan, grocery=grocery, recipes=RECIPES, items=ITEMS,
+        household=HOUSEHOLD, week_start=date(2026, 8, 3),
+        sources={"brined-pork": "https://www.halfbakedharvest.com/pork/"},
+    )
+    text, html = render_weekly_email(context)
+    assert "halfbakedharvest.com" in text and "halfbakedharvest.com" in html
+
+
 def test_weekly_email_renders_both_parts():
     plan = make_plan_result()
     grocery = build_grocery_list(

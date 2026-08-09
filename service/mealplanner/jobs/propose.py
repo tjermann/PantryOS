@@ -20,7 +20,7 @@ from .common import WEEKDAYS, generate_plan, iso_week_of, next_week_dates, plan_
 
 
 def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base,
-                    iteration: int, dry_run: bool) -> None:
+                    iteration: int, dry_run: bool, sources=None) -> None:
     from ..allergen.ontology import load_ontology
     from ..grocery.pipeline import build_grocery_list
 
@@ -62,6 +62,7 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
         week_start=week_dates[0], carts=[],
         feedback_url=feedback_url, recipe_links=recipe_links,
         rating_links=rating_links,
+        sources=sources or {},
         proposal_note=(
             f"PROPOSAL{version} — nothing has been ordered. Reply to this email, tap a "
             f"star, or use the family page with any changes today; an updated proposal "
@@ -90,7 +91,7 @@ def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
         return 0
     store = StateStore(user_dir(user, base))
     week_dates = next_week_dates(today, config.household.dinners_per_week)
-    result, recipes_by_id = generate_plan(user, config, store, week_dates, base)
+    result, recipes_by_id, sources = generate_plan(user, config, store, week_dates, base)
     iso_week = iso_week_of(week_dates[0])
     if not dry_run:
         store.save_plan(iso_week, plan_payload(
@@ -98,7 +99,8 @@ def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
             fingerprint=store.feedback_fingerprint(),
             week_dates=[d.isoformat() for d in week_dates],
         ))
-    _proposal_email(user, config, store, result, recipes_by_id, week_dates, base, 1, dry_run)
+    _proposal_email(user, config, store, result, recipes_by_id, week_dates, base, 1,
+                    dry_run, sources)
     print(f"[{user}] proposal sent ({iso_week})")
     return 0
 
@@ -126,7 +128,7 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
     week_dates = [date.fromisoformat(d) for d in plan.get("week_dates", [])] or \
         next_week_dates(today, config.household.dinners_per_week)
     previous = json.dumps(plan.get("entries", []))
-    result, recipes_by_id = generate_plan(
+    result, recipes_by_id, sources = generate_plan(
         user, config, store, week_dates, base, revision_context=previous
     )
     if not dry_run:
@@ -136,6 +138,6 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
             week_dates=[d.isoformat() for d in week_dates],
         ))
     _proposal_email(user, config, store, result, recipes_by_id, week_dates, base,
-                    iteration, dry_run)
+                    iteration, dry_run, sources)
     print(f"[{user}] revised proposal v{iteration} sent ({iso_week})")
     return 0

@@ -6,9 +6,10 @@ START AHEAD:
 {% for note in long_lead_notes %}  ! {{ note }}
 {% endfor %}{% endif %}
 {% for e in entries %}
-{{ e.day }}: {{ e.title }}{% if e.time_label %} ({{ e.time_label }}){% endif %}
+{{ e.day }}: {{ e.title }}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
   {{ e.rationale }}
-{% if e.url %}  Recipe: {{ e.url }}
+{% if e.source and e.source.startswith('http') %}  Source: {{ e.source }}
+{% endif %}{% if e.url %}  Recipe: {{ e.url }}
 {% endif %}{% for h in e.handling %}  - {{ h }}
 {% endfor %}{% endfor %}
 {% if perishable_notes %}

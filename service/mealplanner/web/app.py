@@ -266,9 +266,19 @@ planner up to run <code>mealplanner setup</code>.</small></p>
         if entry is None:
             raise HTTPException(404, "recipe not found")
         recipe = entry.recipe
+        source_html = ""
+        if entry.source:
+            if entry.source.startswith("http"):
+                from urllib.parse import urlparse
+
+                label = urlparse(entry.source).netloc.removeprefix("www.")
+                source_html = f" · from <a href='{entry.source}'>{label}</a>"
+            else:
+                source_html = f" · from {entry.source}"
         parts = [f"<h1>{recipe.title}</h1>",
                  f"<p><small>Serves {recipe.serves}"
                  + (f" · ~{recipe.published_time_min} min" if recipe.published_time_min else "")
+                 + source_html
                  + "</small></p>"]
         if recipe.ingredients:
             parts.append("<h2>Ingredients</h2>")

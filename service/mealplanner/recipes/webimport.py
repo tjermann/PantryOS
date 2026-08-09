@@ -158,13 +158,27 @@ CLASSIFY_PROMPT = """You annotate a structured recipe. Given its title, ingredie
 (numbered), and steps (numbered), return: the main protein (one lowercase word, or
 'veg'), cuisine (lowercase), applicable seasons (['year_round'] when unclear),
 effort (easy/moderate/involved by hands-on work), dish_type (dinner only for a main
-meal; desserts, drinks, sides, sauces, breakfasts, snacks get their own type),
+evening meal; desserts, drinks, sides, sauces, snacks get their own type, and
+EGG-DOMINANT dishes — frittatas, omelets, quiche, shakshuka, scrambles, breakfast
+bakes — are 'breakfast' even when a site files them under dinner),
 equipment (special appliances the
 recipe REQUIRES — air fryer, instant pot, grill, slow cooker, etc.; empty for
 ordinary stovetop/oven cooking), ingredient_groups (one entry PER ingredient, in
 order: the component it belongs to like 'Sauce'/'Marinade' when the recipe has
 components, else null), and unattended_steps (objects {"step": n, "minutes": m}
 for hands-off waits like marinating/baking/simmering)."""
+
+
+_EGG_DOMINANT = re.compile(
+    r"frittata|omelet|quiche|shakshuka|scrambled egg|egg bake|breakfast casserole|"
+    r"strata|egg muffin|baked eggs",
+    re.IGNORECASE,
+)
+
+
+def breakfast_by_title(title: str) -> bool:
+    """Deterministic backstop: egg-forward dishes are breakfast, not dinner."""
+    return bool(_EGG_DOMINANT.search(title))
 
 
 def _structured_ingredient(text: str, group: str | None) -> dict:
@@ -266,7 +280,7 @@ def import_from_url(
         "serves": data["serves"] or 4,
         "cuisine": cls.cuisine,
         "effort": cls.effort,
-        "dish_type": cls.dish_type,
+        "dish_type": "breakfast" if breakfast_by_title(data["title"]) else cls.dish_type,
         "equipment": equipment,
         "ingredients": [
             _structured_ingredient(text, group)
