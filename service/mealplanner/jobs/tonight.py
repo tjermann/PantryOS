@@ -43,6 +43,21 @@ def run_tonight(user: str, *, base: Path | None = None, dry_run: bool = False,
 
     people = {p.id: p.name for p in config.household.people}
     lines = [f"Tonight: {recipe.title}"]
+    if match.source:
+        if match.source.startswith("http"):
+            from urllib.parse import urlparse
+
+            site = urlparse(match.source).netloc.removeprefix("www.")
+            lines.append(f"Original recipe ({site}): {match.source}")
+        else:
+            lines.append(f"From: {match.source}")
+    if config.web_base_url:
+        from ..web.app import recipe_url
+
+        lines.append(
+            f"PantryOS copy: "
+            f"{recipe_url(user, config.web_base_url.rstrip('/'), recipe.id, base)}"
+        )
     lines.append(f"Aim to start by {start_by.strftime('%-I:%M %p')} for dinner at "
                  f"{dinner.strftime('%-I:%M %p')}"
                  + (f" (includes {lead} min unattended lead time)" if lead else ""))
