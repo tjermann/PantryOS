@@ -105,5 +105,24 @@ class TestReplyStripping:
         body = "More soups in fall.\n> quoted line\n--\nKaty\n"
         assert strip_quoted_reply(body) == "More soups in fall."
 
+    def test_multiline_gmail_attribution(self):
+        # Gmail wraps the attribution, so 'wrote:' lands on its own line.
+        body = (
+            "Can you pull all recipes from these 3 sources we like?\n"
+            "\n"
+            "https://cookieandkate.com/\n"
+            "\n"
+            "On Fri, Aug 7, 2026, 6:16 AM PantryOS <planner@gmail.com>\n"
+            "wrote:\n"
+            "> THIS WEEK'S DINNERS\n"
+        )
+        cleaned = strip_quoted_reply(body)
+        assert "cookieandkate.com" in cleaned
+        assert "PantryOS" not in cleaned and "wrote:" not in cleaned
+
+    def test_phone_signature_dropped(self):
+        body = "More soups please.\n\nSent from my iPhone\n"
+        assert strip_quoted_reply(body) == "More soups please."
+
     def test_truncates_novels(self):
         assert len(strip_quoted_reply("x" * 9000)) == 1500

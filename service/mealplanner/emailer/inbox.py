@@ -23,9 +23,14 @@ IMAP_HOST = "imap.gmail.com"
 MAX_FEEDBACK_CHARS = 1500
 
 _QUOTE_MARKERS = (
-    re.compile(r"^On .{0,120} wrote:\s*$"),
+    # Gmail wraps this attribution across lines, so match the start of it and
+    # let the trailing 'wrote:' land wherever it lands.
+    re.compile(r"^On\s+\w.{0,160}?(?:wrote:|<[^>]+@[^>]+>)\s*$"),
+    re.compile(r"^On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s"),
     re.compile(r"^-{2,}\s*Original Message\s*-{2,}", re.IGNORECASE),
+    re.compile(r"^_{5,}\s*$"),
     re.compile(r"^From: .*@.*$"),
+    re.compile(r"^Sent from my \w+", re.IGNORECASE),
 )
 
 
