@@ -146,6 +146,52 @@ class StateStore:
             digest.update(config_path.read_bytes())
         return digest.hexdigest()
 
+    # -- product memory (what we actually bought last time) -----------------
+    def load_products(self) -> dict:
+        path = self.root / "products.yaml"
+        if not path.exists():
+            return {"preferred": {}, "not_found": {}}
+        data = yaml.safe_load(path.read_text()) or {}
+        data.setdefault("preferred", {})
+        data.setdefault("not_found", {})
+        return data
+
+    def preferred_products(self) -> dict[str, str]:
+        """item key -> exact product title chosen on a previous order."""
+        return {k: v.get("product", "") for k, v in self.load_products()["preferred"].items()}
+
+    def record_cart_outcomes(self, store_id: str, results: list[dict]) -> None:
+        """After a cart run: remember what was added, and count what wasn't
+        found so repeat failures can be surfaced."""
+        from ..grocery.parse import aggregation_key
+
+        data = self.load_products()
+        today = date.today().isoformat()
+        for r in results:
+            key = aggregation_key(r.get("display_name", ""))
+            if not key:
+                continue
+            if r.get("status") in ("added", "substituted") and r.get("product_title"):
+                data["preferred"][key] = {
+                    "product": r["product_title"], "store": store_id, "chosen_at": today,
+                }
+                data["not_found"].pop(key, None)
+            elif r.get("status") == "not_found":
+                entry = data["not_found"].get(key, {"count": 0})
+                entry["count"] = int(entry.get("count", 0)) + 1
+                entry["last_seen"] = today
+                entry["name"] = r.get("display_name", "")
+                data["not_found"][key] = entry
+        _atomic_write(self.root / "products.yaml", yaml.safe_dump(data, sort_keys=True))
+
+    def problem_items(self, min_failures: int = 2) -> list[str]:
+        """Items that have failed to match more than once — worth a human eye."""
+        return [
+            v.get("name", k)
+            for k, v in self.load_products()["not_found"].items()
+            if int(v.get("count", 0)) >= min_failures
+        ]
+
     # -- weekly grocery exclusions ------------------------------------------
     def load_exclusions(self, iso_week: str) -> list[str]:
         """Items the household removed from THIS week's list during review

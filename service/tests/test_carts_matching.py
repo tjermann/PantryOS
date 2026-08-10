@@ -37,6 +37,50 @@ class TestScoreMatch:
         assert score_match("cherry tomatoes", "Cherry Tomato, 1 Pint") == 1.0
 
 
+class TestFormMatching:
+    def test_frozen_request_requires_frozen_product(self):
+        from mealplanner.carts.selector_driver import form_score
+
+        assert form_score("frozen blueberries", "365 Organic Frozen Blueberries") == 1.0
+        assert form_score("frozen blueberries", "Fresh Blueberries, 1 Pint") < 0.3
+
+    def test_fresh_herbs_never_match_dried(self):
+        from mealplanner.carts.selector_driver import form_score
+
+        assert form_score("chives", "Fresh Chives, 0.75 oz") == 1.0
+        assert form_score("chives", "McCormick Dried Chives") < 0.2
+        assert form_score("basil", "Ground Dried Basil Leaves") < 0.2
+        # explicitly asking for dried is honored
+        assert form_score("dried oregano", "Dried Oregano Leaves") == 1.0
+
+    def test_non_herb_forms_penalized_gently(self):
+        from mealplanner.carts.selector_driver import form_score
+
+        assert 0.5 < form_score("black beans", "Canned Black Beans") < 1.0
+
+
+class TestProductMemory:
+    def test_remembered_product_wins(self, tmp_path):
+        from mealplanner.state.store import StateStore
+
+        store = StateStore(tmp_path)
+        store.record_cart_outcomes("amazon", [
+            {"display_name": "frozen waffles", "status": "added",
+             "product_title": "Vans Gluten Free Waffles, 6 ct"},
+            {"display_name": "Chicken thighs", "status": "not_found"},
+        ])
+        prefs = store.preferred_products()
+        assert prefs["frozen waffle"] == "Vans Gluten Free Waffles, 6 ct"
+        assert store.problem_items(min_failures=1) == ["Chicken thighs"]
+
+        # a later success clears the problem flag
+        store.record_cart_outcomes("amazon", [
+            {"display_name": "Chicken thighs", "status": "added",
+             "product_title": "Organic Chicken Thighs"},
+        ])
+        assert store.problem_items(min_failures=1) == []
+
+
 class TestSelectorPacks:
     def test_amazon_pack_has_all_slots(self):
         pack = load_selector_pack("amazon_fresh")

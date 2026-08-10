@@ -18,7 +18,10 @@ MAX_CONSECUTIVE_FAILURES = 3
 def driver_for(store: StoreConfig, user: str, base: Path | None = None) -> SelectorDriver:
     pack_name = "amazon_fresh" if store.adapter == "amazon_fresh" else store.id
     overrides = user_dir(user, base) / "selectors"
-    return SelectorDriver(store.id, load_selector_pack(pack_name, overrides))
+    from ..state.store import StateStore
+
+    preferred = StateStore(user_dir(user, base)).preferred_products()
+    return SelectorDriver(store.id, load_selector_pack(pack_name, overrides), preferred)
 
 
 def store_lines(store: StoreConfig, lines: list[GroceryLine]) -> list[GroceryLine]:
@@ -80,6 +83,14 @@ def load_cart_for_store(
             report.cart_url = driver.cart_url()
         finally:
             context.close()
+    # Remember what we bought (and what we couldn't find) for next week.
+    from ..state.store import StateStore
+
+    StateStore(user_dir(user, base)).record_cart_outcomes(
+        store.id,
+        [{"display_name": r.display_name, "status": r.status,
+          "product_title": r.product_title} for r in report.results],
+    )
     return report
 
 

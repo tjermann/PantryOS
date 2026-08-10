@@ -81,6 +81,42 @@ def score_match(query: str, product_title: str) -> float:
     return len(q & _tokens(product_title)) / len(q)
 
 
+# Product form matters: 'frozen blueberries' must be frozen, and a recipe
+# calling for chives wants fresh ones, not a jar of dried.
+_FORM_WORDS = {
+    "frozen": ("frozen",),
+    "dried": ("dried", "dehydrated"),
+    "canned": ("canned", "can of"),
+    "ground": ("ground",),
+}
+# Items where the default is the fresh version unless stated otherwise.
+_FRESH_BY_DEFAULT = re.compile(
+    r"\b(chive|basil|parsley|cilantro|dill|mint|thyme|rosemary|sage|oregano|tarragon|"
+    r"scallion|green onion|ginger|garlic|berry|berries|spinach|kale|herb)s?\b",
+    re.IGNORECASE,
+)
+
+
+def form_score(query: str, title: str) -> float:
+    """Multiplier applied to a match: 1.0 = right form, lower = wrong form."""
+    q, t = query.lower(), title.lower()
+    penalty = 1.0
+    for form, needles in _FORM_WORDS.items():
+        wanted = any(n in q for n in needles)
+        present = any(n in t for n in needles)
+        if wanted and not present:
+            penalty *= 0.2          # asked for frozen, product isn't
+        elif present and not wanted:
+            # Fresh-by-default items must not fall back to dried/ground.
+            if form in ("dried", "ground") and _FRESH_BY_DEFAULT.search(q):
+                penalty *= 0.15
+            elif form == "frozen" and _FRESH_BY_DEFAULT.search(q):
+                penalty *= 0.5
+            else:
+                penalty *= 0.8
+    return penalty
+
+
 def human_pause() -> None:
     time.sleep(random.uniform(0.8, 2.0))
 
@@ -89,9 +125,11 @@ class SelectorDriver(StoreDriver):
     MATCH_THRESHOLD = 0.5
     RESULTS_TO_CONSIDER = 4
 
-    def __init__(self, store_id: str, pack: dict):
+    def __init__(self, store_id: str, pack: dict, preferred: dict[str, str] | None = None):
         self.id = store_id
         self.pack = pack
+        # item key -> product title bought last time; re-picked when seen again.
+        self.preferred = preferred or {}
 
     def home_url(self) -> str:
         return self.pack["home_url"]
@@ -182,7 +220,13 @@ class SelectorDriver(StoreDriver):
                 except Exception:
                     continue
             if title:
-                scored.append((score_match(query, title), title, card))
+                from ..grocery.parse import aggregation_key
+
+                base_score = score_match(query, title) * form_score(query, title)
+                remembered = self.preferred.get(aggregation_key(line.display_name))
+                if remembered and title.strip().lower() == remembered.strip().lower():
+                    base_score = 1.5  # same product as last time — pick it again
+                scored.append((base_score, title, card))
         scored.sort(key=lambda x: x[0], reverse=True)
         eligible = [s for s in scored if s[0] >= self.MATCH_THRESHOLD]
         if not eligible:

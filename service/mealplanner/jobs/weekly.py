@@ -184,6 +184,7 @@ def run_weekly(
         recipe_links=recipe_links,
         rating_links=rating_links,
         sources=sources,
+        problem_items=store.problem_items(),
     )
     text, html = render_weekly_email(context)
 

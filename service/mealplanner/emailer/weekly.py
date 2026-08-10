@@ -70,6 +70,7 @@ def build_weekly_email_context(
     rating_links: Mapping[str, list[tuple[int, str]]] | None = None,
     proposal_note: str | None = None,
     sources: Mapping[str, str] | None = None,
+    problem_items: list[str] | None = None,
 ) -> dict[str, Any]:
     sources = sources or {}
     recipe_links = recipe_links or {}
@@ -173,6 +174,7 @@ def build_weekly_email_context(
         "perishable_notes": perishable_notes,
         "grocery_sections": grocery_sections,
         "budget_line": budget_line,
+        "problem_items": ", ".join(problem_items or []) or None,
         "carts": carts or [],
         "feedback_url": feedback_url,
     }
