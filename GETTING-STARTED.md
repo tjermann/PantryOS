@@ -49,19 +49,58 @@ git --version && python3 --version
 
 ---
 
-## Step 2 — Download and install PantryOS
+## Step 2 — Download ("clone") PantryOS
 
-Copy these two lines, paste them into the terminal, press Enter:
+"Cloning" just means downloading a copy of the code into a folder on your
+computer. **You do not need a GitHub account** and nothing gets published —
+this is a one-way download.
+
+The folder lands wherever the terminal is currently pointed, which when you
+first open it is your home folder (`/Users/yourname` on a Mac,
+`/home/yourname` on Linux). That's a fine place. If you'd rather keep it
+somewhere specific, go there first — for example your Documents folder:
+
+```bash
+cd ~/Documents
+```
+
+Now copy this line, paste it into the terminal, and press Enter:
 
 ```bash
 git clone https://github.com/tjermann/PantryOS.git
-cd PantryOS && ./install.sh
 ```
 
-This downloads PantryOS and sets it up in its own private folder — it does not
-change anything else on your computer. It takes a few minutes (it downloads a
-browser it uses to fill grocery carts). When it finishes it offers to start the
-setup questions; say yes and continue to Step 3.
+You'll see a few lines about "Cloning into 'PantryOS'..." and counting
+objects. When it finishes you have a new folder called **PantryOS**. Step into
+it and run the installer:
+
+```bash
+cd PantryOS
+./install.sh
+```
+
+`cd` means "change directory" — it moves the terminal into that folder, the
+same as double-clicking it in Finder or Files. The installer takes a few
+minutes (most of it downloading a browser it uses to fill grocery carts) and
+sets everything up inside that one folder — it changes nothing else on your
+computer. When it finishes it offers to start the setup questions; say yes and
+continue to Step 3.
+
+**Two things worth writing down:**
+
+- **Getting back here later.** Every command in this guide is run from inside
+  the PantryOS folder. To return to it in a new terminal window, type
+  `cd ~/PantryOS` (or `cd ~/Documents/PantryOS` if you used Documents above).
+  Not sure where you are? Type `pwd` to print your current folder.
+- **Updating later.** To get improvements, run `git pull` from inside the
+  PantryOS folder. Your household settings, recipes, ratings, and credentials
+  live in files that updates never touch.
+
+> **Prefer clicking to typing?** On the
+> [GitHub page](https://github.com/tjermann/PantryOS) you can use the green
+> **Code** button → **Download ZIP**, then unzip it and `cd` into the unzipped
+> folder. Cloning is better (it makes `git pull` updates possible), but the ZIP
+> works fine.
 
 ---
 
