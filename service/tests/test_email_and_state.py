@@ -146,6 +146,22 @@ class TestStateStore:
         store.record_rating("some-dish", score=5)
         assert store.feedback_fingerprint() != after_learning
 
+    def test_order_clears_restock_and_unfound(self, tmp_path: Path):
+        store = StateStore(tmp_path)
+        store.add_restock("distilled white vinegar")
+        store.record_cart_outcomes("amazon", [
+            {"display_name": "Chicken thighs", "status": "not_found"},
+            {"display_name": "frozen waffles", "status": "added",
+             "product_title": "Vans Waffles"},
+        ])
+        assert store.load_restock() and store.problem_items(min_failures=1)
+
+        store.clear_after_order()
+        assert store.load_restock() == []                  # needs satisfied
+        assert store.problem_items(min_failures=1) == []   # assumed found elsewhere
+        # What to buy is still remembered — only outstanding needs reset.
+        assert store.preferred_products()["frozen waffle"] == "Vans Waffles"
+
     def test_plans_orders_learnings_roundtrip(self, tmp_path: Path):
         store = StateStore(tmp_path)
         store.save_plan("2026-W32", {"week": "2026-W32", "entries": []})

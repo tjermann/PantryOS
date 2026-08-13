@@ -23,9 +23,6 @@ GROCERY LIST
 [{{ section.label }}]
 {% for line in section.lines %}  [ ] {{ line.text }}{% if line.tag %} ({{ line.tag }}){% endif %}
 {% endfor %}{% endfor %}
-{% if problem_items %}
-Repeatedly hard to find online: {{ problem_items }}
-{% endif %}
 {% if carts %}
 CARTS
 {% for cart in carts %}- {{ cart.store }}: {{ cart.summary }}{% if cart.url %}

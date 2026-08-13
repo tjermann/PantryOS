@@ -184,7 +184,6 @@ def run_weekly(
         recipe_links=recipe_links,
         rating_links=rating_links,
         sources=sources,
-        problem_items=store.problem_items(),
     )
     text, html = render_weekly_email(context)
 
@@ -232,5 +231,8 @@ def run_weekly(
             "review": None,  # filled in by `mealplanner review-orders`
         },
     )
+    # The order is in: restock needs are satisfied and anything the cart
+    # couldn't find is assumed sourced elsewhere — nothing carries forward.
+    store.clear_after_order()
     print(f"[{user}] weekly email sent to {', '.join(config.email.to)} ({iso_week})")
     return 0

@@ -184,6 +184,17 @@ class StateStore:
                 data["not_found"][key] = entry
         _atomic_write(self.root / "products.yaml", yaml.safe_dump(data, sort_keys=True))
 
+    def clear_after_order(self) -> None:
+        """Once the weekly order is placed, everything is considered stocked:
+        the restock queue empties, and unfound items are assumed sourced
+        elsewhere rather than nagging into next week. Preferred products (what
+        to buy) are kept — only outstanding needs are cleared."""
+        self.save_restock([])
+        data = self.load_products()
+        if data.get("not_found"):
+            data["not_found"] = {}
+            _atomic_write(self.root / "products.yaml", yaml.safe_dump(data, sort_keys=True))
+
     def problem_items(self, min_failures: int = 2) -> list[str]:
         """Items that have failed to match more than once — worth a human eye."""
         return [
