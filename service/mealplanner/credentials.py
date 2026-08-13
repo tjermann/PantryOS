@@ -17,8 +17,10 @@ from functools import lru_cache
 from pathlib import Path
 
 SERVICE_ROOT = Path(__file__).resolve().parent.parent
+# /data is the Docker volume; the repo folder is the normal install.
 DEFAULT_LOCATIONS = (
     SERVICE_ROOT / "user_info.json",
+    Path("/data/user_info.json"),
     Path.cwd() / "user_info.json",
 )
 

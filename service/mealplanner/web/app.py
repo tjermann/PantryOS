@@ -18,15 +18,33 @@ from __future__ import annotations
 
 import secrets
 from datetime import date
+from html import escape
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from itsdangerous import BadSignature, URLSafeSerializer
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+# Links live in emails people keep, but not forever — a stale link from an old
+# inbox shouldn't still steer next year's groceries.
+TOKEN_MAX_AGE_S = 120 * 24 * 3600  # 120 days
+
 
 from ..config import list_users, load_user_config, save_user_config, user_dir
 from ..recipes.merged import load_full_library
 from ..state.store import StateStore
+
+
+def esc(value: object) -> str:
+    """HTML-escape anything user- or recipe-derived before it hits the page."""
+    return escape(str(value), quote=True)
+
+
+def q(value: object) -> str:
+    """URL-quote a path segment so it can't break out of an href."""
+    from urllib.parse import quote
+
+    return quote(str(value), safe="")
 
 
 def _secret_for(user: str, base: Path | None = None) -> str:
@@ -38,8 +56,8 @@ def _secret_for(user: str, base: Path | None = None) -> str:
     return path.read_text().strip()
 
 
-def _serializer(user: str, base: Path | None = None) -> URLSafeSerializer:
-    return URLSafeSerializer(_secret_for(user, base), salt="mealplanner-web")
+def _serializer(user: str, base: Path | None = None) -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(_secret_for(user, base), salt="mealplanner-web")
 
 
 def feedback_url(user: str, base_url: str, base: Path | None = None) -> str:
@@ -61,7 +79,11 @@ def _check(user: str, token: str | None, base: Path | None = None) -> dict:
     if not token:
         raise HTTPException(403, "missing token — use the link from your email")
     try:
-        data = _serializer(user, base).loads(token)
+        data = _serializer(user, base).loads(token, max_age=TOKEN_MAX_AGE_S)
+    except SignatureExpired:
+        raise HTTPException(
+            403, "this link has expired — use the one from a recent planner email"
+        )
     except BadSignature:
         raise HTTPException(403, "bad token — use the link from your email")
     if data.get("u") != user:
@@ -90,7 +112,7 @@ def create_app(base: Path | None = None) -> FastAPI:
     def index():
         users = ", ".join(list_users(base)) or "none yet — run `mealplanner setup`"
         return PAGE.format(
-            body=f"<h1>Meal Planner</h1><p>Users: {users}</p>"
+            body=f"<h1>Meal Planner</h1><p>Users: {esc(users)}</p>"
                  "<p>Open your personal link from any planner email.</p>"
         )
 
@@ -105,7 +127,7 @@ def create_app(base: Path | None = None) -> FastAPI:
         )
         return PAGE.format(
             body=f"<h1>Thanks!</h1><div class='msg'>Recorded {'★' * score} for "
-                 f"<strong>{slug}</strong> (now: {state.lifecycle}).</div>"
+                 f"<strong>{esc(slug)}</strong> (now: {esc(state.lifecycle)}).</div>"
         )
 
     @app.get("/u/{user}", response_class=HTMLResponse)
@@ -115,9 +137,9 @@ def create_app(base: Path | None = None) -> FastAPI:
         store = StateStore(user_dir(user, base))
         s = _serializer(user, base)
 
-        parts = [f"<h1>{config.name} — meal feedback</h1>"]
+        parts = [f"<h1>{esc(config.name)} — meal feedback</h1>"]
         if saved:
-            parts.append(f"<div class='msg'>{saved}</div>")
+            parts.append(f"<div class='msg'>{esc(saved)}</div>")
 
         latest = store.latest_plan()
         parts.append("<h2>Rate recent dinners</h2>")
@@ -127,7 +149,7 @@ def create_app(base: Path | None = None) -> FastAPI:
             for entry in plan.get("entries", []):
                 slug = entry.get("recipe_id")
                 stars = " ".join(
-                    f"<a href='/rate/{user}?t={s.dumps({'u': user, 'r': slug, 's': n})}'>"
+                    f"<a href='/rate/{q(user)}?t={s.dumps({'u': user, 'r': slug, 's': n})}'>"
                     f"{'★' * n}{'☆' * (5 - n)}</a>"
                     for n in range(1, 6)
                 )
@@ -137,17 +159,17 @@ def create_app(base: Path | None = None) -> FastAPI:
                 cut_t = s.dumps({"u": user, "m": slug, "lc": "cut"})
                 recipe_t = s.dumps({"u": user})
                 parts.append(
-                    f"<div class='card'><strong>{slug.replace('-', ' ').title()}</strong> "
-                    f"<small>({entry.get('date')}, now: {lifecycle})</small> "
-                    f"<a href='/r/{user}/{slug}?t={recipe_t}'>view recipe →</a>"
+                    f"<div class='card'><strong>{esc(slug.replace('-', ' ').title())}</strong> "
+                    f"<small>({esc(entry.get('date'))}, now: {esc(lifecycle)})</small> "
+                    f"<a href='/r/{q(user)}/{q(slug)}?t={recipe_t}'>view recipe →</a>"
                     f"<div class='stars'>{stars}</div>"
-                    f"<form method='post' action='/note/{user}'>"
-                    f"<input type='hidden' name='t' value='{t}'>"
-                    f"<input type='hidden' name='slug' value='{slug}'>"
+                    f"<form method='post' action='/note/{q(user)}'>"
+                    f"<input type='hidden' name='t' value='{esc(t)}'>"
+                    f"<input type='hidden' name='slug' value='{esc(slug)}'>"
                     f"<input name='note' placeholder='Notes for next time (e.g. double the sauce)'>"
                     f"<button>Save note</button> "
-                    f"<a href='/mark/{user}?t={keep_t}'>keep it coming</a> · "
-                    f"<a href='/mark/{user}?t={cut_t}'>never again</a>"
+                    f"<a href='/mark/{q(user)}?t={keep_t}'>keep it coming</a> · "
+                    f"<a href='/mark/{q(user)}?t={cut_t}'>never again</a>"
                     f"</form></div>"
                 )
         else:
@@ -173,8 +195,8 @@ def create_app(base: Path | None = None) -> FastAPI:
                     style = ("color:#999;text-decoration:line-through" if checked else "")
                     return (
                         f"<label style='display:block;margin:2px 0;font-size:14px;{style}'>"
-                        f"<input type='checkbox' name='have' value=\"{name}\"{mark} "
-                        f"style='width:auto;margin-right:8px'>{name}{qty_label}</label>"
+                        f"<input type='checkbox' name='have' value=\"{esc(name)}\"{mark} "
+                        f"style='width:auto;margin-right:8px'>{esc(name)}{esc(qty_label)}</label>"
                     )
 
                 for section in SECTION_ORDER:
@@ -201,8 +223,8 @@ def create_app(base: Path | None = None) -> FastAPI:
                     f"<p><small>Check anything you already have enough of, then hit "
                     f"Update — checked items won't be bought this week. (Permanent "
                     f"staples are handled separately below.)</small></p>"
-                    f"<form method='post' action='/grocery/{user}'>"
-                    f"<input type='hidden' name='t' value='{t}'>"
+                    f"<form method='post' action='/grocery/{q(user)}'>"
+                    f"<input type='hidden' name='t' value='{esc(t)}'>"
                     + "".join(rows)
                     + "<button style='margin-top:10px'>Update list</button>"
                     "</form></div>"
@@ -210,10 +232,10 @@ def create_app(base: Path | None = None) -> FastAPI:
 
         staples_list = store.load_staples()
         staple_rows = "".join(
-            f"<li>{s} — "
-            f"<form method='post' action='/staples/{user}' style='display:inline'>"
-            f"<input type='hidden' name='t' value='{t}'>"
-            f"<input type='hidden' name='item' value='{s}'>"
+            f"<li>{esc(s)} — "
+            f"<form method='post' action='/staples/{q(user)}' style='display:inline'>"
+            f"<input type='hidden' name='t' value='{esc(t)}'>"
+            f"<input type='hidden' name='item' value='{esc(s)}'>"
             f"<button name='action' value='restock' style='padding:2px 8px;font-size:12px'>ran out — buy this week</button> "
             f"<button name='action' value='remove' style='padding:2px 8px;font-size:12px;background:#999'>remove</button>"
             f"</form></li>"
@@ -225,7 +247,7 @@ def create_app(base: Path | None = None) -> FastAPI:
 <p><small>Things you always have — salt, olive oil, spices. Recipes that use them
 won't add them to the weekly order. Tap 'ran out' to buy one this week.</small></p>
 <ul>{staple_rows}</ul>
-<form method='post' action='/staples/{user}'>
+<form method='post' action='/staples/{q(user)}'>
 <input type='hidden' name='t' value='{t}'>
 <input name='item' placeholder='e.g. sea salt, cumin, olive oil'>
 <button name='action' value='add'>Add staple</button>
@@ -237,7 +259,7 @@ won't add them to the weekly order. Tap 'ran out' to buy one this week.</small><
         checked = "checked" if config.household.budget_enabled else ""
         parts.append(
             f"""<h2>Preferences</h2>
-<form method='post' action='/prefs/{user}' class='card'>
+<form method='post' action='/prefs/{q(user)}' class='card'>
 <input type='hidden' name='t' value='{t}'>
 <label>Dinners per week</label>
 <select name='dinners'>{''.join(f"<option {'selected' if n == config.household.dinners_per_week else ''}>{n}</option>" for n in range(1, 8))}</select>
@@ -272,10 +294,10 @@ planner up to run <code>mealplanner setup</code>.</small></p>
                 from urllib.parse import urlparse
 
                 label = urlparse(entry.source).netloc.removeprefix("www.")
-                source_html = f" · from <a href='{entry.source}'>{label}</a>"
+                source_html = f" · from <a href='{esc(entry.source)}'>{esc(label)}</a>"
             else:
-                source_html = f" · from {entry.source}"
-        parts = [f"<h1>{recipe.title}</h1>",
+                source_html = f" · from {esc(entry.source)}"
+        parts = [f"<h1>{esc(recipe.title)}</h1>",
                  f"<p><small>Serves {recipe.serves}"
                  + (f" · ~{recipe.published_time_min} min" if recipe.published_time_min else "")
                  + source_html
@@ -290,12 +312,12 @@ planner up to run <code>mealplanner setup</code>.</small></p>
                         parts.append("</ul>")
                     if i.group:
                         parts.append(
-                            f"<h3 style='font-size:14px;margin:10px 0 2px;color:#c96f4a;'>{i.group}</h3>"
+                            f"<h3 style='font-size:14px;margin:10px 0 2px;color:#c96f4a;'>{esc(i.group)}</h3>"
                         )
                     parts.append("<ul>")
                     open_list = True
                     current_group = i.group
-                parts.append(f"<li>{i.raw}</li>")
+                parts.append(f"<li>{esc(i.raw)}</li>")
             if open_list:
                 parts.append("</ul>")
         if recipe.steps:
@@ -321,7 +343,7 @@ planner up to run <code>mealplanner setup</code>.</small></p>
                 if s.unattended:
                     extra.append("hands-off")
                 suffix = f" <small>({', '.join(extra)})</small>" if extra else ""
-                parts.append(f"<li>{s.text}{suffix}</li>")
+                parts.append(f"<li>{esc(s.text)}{suffix}</li>")
             parts.append("</ol>")
         else:
             source = entry.source or "the original source"
@@ -332,7 +354,7 @@ planner up to run <code>mealplanner setup</code>.</small></p>
             )
         if not recipe.ingredients and entry.markdown_path.exists():
             body = entry.markdown_path.read_text()
-            parts.append(f"<pre style='white-space:pre-wrap'>{body}</pre>")
+            parts.append(f"<pre style='white-space:pre-wrap'>{esc(body)}</pre>")
         return PAGE.format(body="".join(parts))
 
     @app.post("/grocery/{user}")
@@ -381,7 +403,7 @@ planner up to run <code>mealplanner setup</code>.</small></p>
         StateStore(user_dir(user, base)).set_lifecycle(slug, lifecycle)
         verdict = "will keep showing up" if lifecycle == "keeper" else "won't be planned again"
         return PAGE.format(
-            body=f"<h1>Done</h1><div class='msg'><strong>{slug}</strong> {verdict}.</div>"
+            body=f"<h1>Done</h1><div class='msg'><strong>{esc(slug)}</strong> {verdict}.</div>"
         )
 
     @app.post("/note/{user}")

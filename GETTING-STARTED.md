@@ -49,6 +49,30 @@ git --version && python3 --version
 
 ---
 
+## Shortcut: if you already use Docker
+
+Skip Steps 1–2 and 8 entirely:
+
+```bash
+git clone https://github.com/tjermann/PantryOS.git
+cd PantryOS
+docker compose run --rm pantryos python -m mealplanner setup   # the questions
+docker compose up -d                                           # start it
+```
+
+Everything lives in a `data/` folder next to the compose file — configs,
+recipes, ratings, credentials — so backing PantryOS up means copying one
+folder. The container runs its own schedule and the family web page
+(`http://your-machine-ip:8321`); you don't need cron.
+
+Two caveats: set `TZ` in `docker-compose.yml` to your timezone so "Friday
+morning" means yours, and store sign-in needs a visible browser — run
+`mealplanner login` once on the host and copy the resulting
+`users/NAME/browser` folder into `data/users/NAME/`, or skip carts and take
+the emailed list.
+
+The rest of this guide covers the non-Docker path.
+
 ## Step 2 — Download ("clone") PantryOS
 
 "Cloning" just means downloading a copy of the code into a folder on your

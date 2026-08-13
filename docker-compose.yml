@@ -1,0 +1,27 @@
+# PantryOS — one command to run the whole thing:
+#     docker compose up -d
+#
+# First time, set it up interactively (asks about your household, then writes
+# everything into ./data, which stays on your machine):
+#     docker compose run --rm pantryos python -m mealplanner setup
+#
+# Everyday commands:
+#     docker compose logs -f                                    watch it work
+#     docker compose exec pantryos python -m mealplanner doctor  health check
+#     docker compose exec pantryos python -m mealplanner run-weekly --user NAME --dry-run
+services:
+  pantryos:
+    build: .
+    image: pantryos:latest
+    container_name: pantryos
+    restart: unless-stopped
+    ports:
+      - "8321:8321"          # family web page
+    volumes:
+      - ./data:/data         # configs, recipes, ratings, store sessions — yours
+    environment:
+      # Set this to your machine's timezone so "Friday morning" means yours.
+      TZ: ${TZ:-America/Chicago}
+    # Store sign-in needs a visible browser, which a container can't show.
+    # Run `mealplanner login` on the host once; copy the resulting
+    # users/<name>/browser folder into ./data/users/<name>/ and carts work here.

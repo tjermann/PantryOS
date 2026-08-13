@@ -426,6 +426,17 @@ def serve(
     uvicorn.run(create_app(), host=host, port=port, **kwargs)
 
 
+@app.command()
+def scheduler(
+    serve: bool = typer.Option(False, "--serve", help="Also run the family web page"),
+    port: int = typer.Option(8321),
+):
+    """Run the weekly rhythm as a long-lived process (used by Docker)."""
+    from .scheduler import run_scheduler
+
+    raise typer.Exit(run_scheduler(serve=serve, port=port))
+
+
 @app.command("restart-serve")
 def restart_serve_cmd(
     host: str = typer.Option("0.0.0.0"),

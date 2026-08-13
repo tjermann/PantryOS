@@ -99,6 +99,43 @@ def test_grocery_toggle_round_trip(client, users_base):
                        follow_redirects=False).status_code == 403
 
 
+def test_user_content_is_escaped(client, users_base):
+    """A recipe title or note containing HTML must never execute."""
+    from mealplanner.config import user_dir
+
+    store = StateStore(user_dir("test", users_base))
+    store.save_plan("2026-W33", {
+        "week": "2026-W33", "status": "final",
+        "entries": [{"recipe_id": "<img src=x onerror=alert(1)>", "date": "2026-08-11",
+                     "servings": 4, "person_handling": []}],
+    })
+    store.save_staples(["<script>alert('staple')</script>"])
+    body = client.get(feedback_url("test", "", users_base)).text
+    # No live tags: the payload must appear as visible text, never as markup.
+    assert "<script>" not in body
+    assert "<img src=x" not in body
+    assert "&lt;script&gt;" in body and "&lt;img" in body
+    # And it must not have escaped an href/attribute boundary either.
+    assert "src=x onerror=alert(1)>'" not in body
+
+
+def test_saved_message_is_escaped(client, users_base):
+    """The 'saved' query parameter is reflected — it must be escaped too."""
+    url = feedback_url("test", "", users_base)
+    body = client.get(f"{url}&saved=%3Cscript%3Ealert(1)%3C/script%3E").text
+    assert "<script>alert(1)</script>" not in body
+
+
+def test_expired_links_are_rejected(users_base, monkeypatch):
+    import mealplanner.web.app as web
+
+    url = feedback_url("test", "", users_base)
+    monkeypatch.setattr(web, "TOKEN_MAX_AGE_S", -1)  # everything is now expired
+    response = TestClient(web.create_app(users_base)).get(url)
+    assert response.status_code == 403
+    assert "expired" in response.text
+
+
 def test_tokens_are_per_user(client, users_base):
     # A token minted for one user must not authorize another path.
     url = feedback_url("test", "", users_base)

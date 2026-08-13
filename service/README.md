@@ -115,6 +115,27 @@ excluded for allergy households — the system fails closed, never open.
   `user_info.json`, which is gitignored and never leaves your machine
   (environment variables still work as a fallback).
 
+## Security notes
+
+PantryOS is built for a home network, and the threat model is honest about it:
+
+- **Family page links are the access control.** They're HMAC-signed per
+  household with a secret in `users/<name>/.web_secret`, and they expire after
+  120 days. Anyone on your network with a link can rate meals and edit
+  preferences — that's the intent. Allergy and dietary changes are deliberately
+  *not* editable there; those require the CLI.
+- **All page content is HTML-escaped**, so a recipe title or note containing
+  markup renders as text rather than running.
+- **Secrets stay in files you own**: `user_info.json` (chmod 600) and
+  per-household directories (chmod 700), which include saved store browser
+  sessions. Those sessions are as sensitive as being logged in — **use
+  full-disk encryption** on a laptop that leaves the house; app-level
+  encryption wouldn't help while the service needs to read them unattended.
+- **Store passwords are never collected**; you sign in yourself in a real
+  browser window.
+- **Don't port-forward this to the internet.** It has no accounts and assumes a
+  trusted network. If you need it away from home, use a VPN into your LAN.
+
 ## Troubleshooting
 
 **"Site can't be reached" on the family page, but only in some browsers**

@@ -52,6 +52,17 @@ order history and "that substitution worked" notes feed future planning.
 > password, choosing an AI option (including a free local model), and letting
 > your family in.
 
+## Docker
+
+```bash
+git clone https://github.com/tjermann/PantryOS.git && cd PantryOS
+docker compose run --rm pantryos python -m mealplanner setup
+docker compose up -d
+```
+
+Runs the schedule and the family page in one container; all state lives in
+`./data`. See [GETTING-STARTED.md](GETTING-STARTED.md) for the manual path.
+
 ## Setup — three steps, no coding
 
 You need: a Linux or macOS computer that stays on (an old laptop or Raspberry

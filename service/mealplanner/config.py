@@ -97,7 +97,16 @@ def users_root(base: Path | None = None) -> Path:
 
 
 def user_dir(user: str, base: Path | None = None) -> Path:
-    return users_root(base) / user
+    """Per-household data (config, state, browser sessions). Owner-only: these
+    directories hold store sessions and household details, so other accounts on
+    a shared machine have no business reading them."""
+    path = users_root(base) / user
+    try:
+        if path.exists() and (path.stat().st_mode & 0o077):
+            path.chmod(0o700)
+    except OSError:
+        pass  # best effort; never block a run on a permission quirk
+    return path
 
 
 def load_user_config(user: str, base: Path | None = None) -> UserConfig:
