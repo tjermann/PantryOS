@@ -83,6 +83,33 @@ def test_email_shows_recipe_sources():
     assert "halfbakedharvest.com" in text and "halfbakedharvest.com" in html
 
 
+def test_lunch_entries_render_separately():
+    proposal = PlanProposal(entries=[
+        PlanEntryProposal(recipe_id="brined-pork", date="2026-08-03", servings=4,
+                          rationale="Sunday dinner."),
+        PlanEntryProposal(recipe_id="coconut-curry", date="2026-08-03",
+                          meal_type="lunch", servings=8,
+                          rationale="Batch for lunches; keeps 4 days."),
+    ])
+    plan = PlanRunResult(
+        proposal=proposal, validation=ValidationResult(ok=True, errors=[], warnings=[]),
+        dropped_recipe_ids=[], usage=LlmUsage(0, 0, 0, 0),
+        prompt_version="v1", model="claude-opus-5",
+    )
+    grocery = build_grocery_list(recipes=[(BRINED, 4)], pantry=[], standing=[],
+                                 items=ITEMS, budget_enabled=False, budget_cents=None)
+    context = build_weekly_email_context(
+        plan=plan, grocery=grocery, recipes=RECIPES, items=ITEMS,
+        household=HOUSEHOLD, week_start=date(2026, 8, 3),
+    )
+    assert [e["title"] for e in context["entries"]] == ["Brined Pork Chops"]
+    assert [e["title"] for e in context["lunches"]] == ["Coconut Chicken Curry"]
+    assert context["lunches"][0]["day"].startswith("Make ")
+    for body in render_weekly_email(context):
+        assert "MAKE-AHEAD LUNCH" in body or "Make-ahead lunch" in body
+        assert "keeps 4 days" in body
+
+
 def test_weekly_email_renders_both_parts():
     plan = make_plan_result()
     grocery = build_grocery_list(

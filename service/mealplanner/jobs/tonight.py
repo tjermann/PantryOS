@@ -26,7 +26,12 @@ def run_tonight(user: str, *, base: Path | None = None, dry_run: bool = False,
     if latest is None:
         return 0
     _, plan = latest
-    entry = next((e for e in plan.get("entries", []) if e.get("date") == today.isoformat()), None)
+    entry = next(
+        (e for e in plan.get("entries", [])
+         if e.get("date") == today.isoformat()
+         and e.get("meal_type", "dinner") == "dinner"),
+        None,
+    )
     if entry is None:
         return 0
 

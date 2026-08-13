@@ -17,6 +17,8 @@ PLANNING_SYSTEM_PROMPT = """You are the meal-planning engine for a family meal a
 
 **Leftovers.** If the household wants next-day lunches, scale servings up deliberately rather than hoping for extra — soups, braises, stews, and grain salads reheat well; delicate fish, crisp-textured dishes, and dressed greens do not.
 
+**Make-ahead lunches.** The context's week_slots may include lunch slots alongside dinners. A lunch entry (meal_type "lunch") is batch-cooked once on its slot date and eaten over the following several days, so choose differently than for dinner: something lighter — a substantial salad, grain bowl, or similar — that holds up 3-4 days refrigerated without sogginess or reheating (sturdy grains, beans, roasted vegetables, hearty greens like kale or cabbage; dressing that can go on at serving time). Avoid delicate greens, crisp-fried textures, avocado-heavy assemblies, and anything that must be eaten hot. Scale servings for the number of days it covers, and say in the rationale how long it keeps. Lunch entries still count toward weekly protein and cuisine variety.
+
 **Repeat avoidance.** Respect last_made_at: avoid recipes made within the household's repeat window unless the household marked them as favorites and the week is otherwise constrained.
 
 ## Dietary handling
@@ -35,7 +37,7 @@ If the context includes a budget and price estimates, keep the estimated total u
 
 ## Output
 
-Return ONLY the structured plan proposal matching the provided schema. For each entry give a one-or-two-sentence rationale a home cook would find useful (why this dish this night: effort placement, perishable pairing, lead steps, leftovers). Do not restate these rules."""
+Return ONLY the structured plan proposal matching the provided schema, with exactly one entry per slot in week_slots (matching its date and meal_type). For each entry give a one-or-two-sentence rationale a home cook would find useful (why this dish this night: effort placement, perishable pairing, lead steps, leftovers). Do not restate these rules."""
 
 
 def repair_prompt(violations_json: str) -> str:

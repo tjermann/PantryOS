@@ -12,6 +12,12 @@ START AHEAD:
 {% endif %}{% if e.url %}  Recipe: {{ e.url }}
 {% endif %}{% for h in e.handling %}  - {{ h }}
 {% endfor %}{% endfor %}
+{% if lunches %}
+MAKE-AHEAD LUNCH
+{% for e in lunches %}{{ e.day }}: {{ e.title }}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
+  {{ e.rationale }}
+{% if e.url %}  Recipe: {{ e.url }}
+{% endif %}{% endfor %}{% endif %}
 {% if perishable_notes %}
 No-waste pairings: {{ perishable_notes }}
 {% endif %}

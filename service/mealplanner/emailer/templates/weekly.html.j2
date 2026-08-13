@@ -36,6 +36,21 @@
     {% endfor %}
   </table>
 
+  {% if lunches %}
+  <h2 style="font-size: 18px; margin-top: 22px;">Make-ahead lunch</h2>
+  {% for e in lunches %}
+  <div style="border: 1px solid #ddd; border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-size: 14px;">
+    <strong>{% if e.url %}<a href="{{ e.url }}" style="color:#2b2b2b;">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</strong>
+    <span style="color:#777;">— {{ e.day }}{% if e.time_label %}, {{ e.time_label }}{% endif %}</span>
+    {% if e.source_label %}<br><span style="color:#999; font-size:12px;">from {% if e.source and e.source.startswith('http') %}<a href="{{ e.source }}" style="color:#999;">{{ e.source_label }}</a>{% else %}{{ e.source_label }}{% endif %}</span>{% endif %}
+    <div style="margin-top: 4px;">{{ e.rationale }}</div>
+    {% for h in e.handling %}<em>{{ h }}</em><br>{% endfor %}
+    {% if e.stars %}<div style="margin-top:4px;"><span style="font-size:12px;color:#777;">Rate:</span>
+    {% for n, link in e.stars %}<a href="{{ link }}" style="text-decoration:none;font-size:15px;">{{ '★' * n }}{{ '☆' * (5 - n) }}</a>&nbsp; {% endfor %}</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
   {% if perishable_notes %}
   <p style="font-size: 13px; color: #555;"><strong>No-waste pairings:</strong> {{ perishable_notes }}</p>
   {% endif %}

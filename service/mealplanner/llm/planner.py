@@ -57,6 +57,7 @@ def build_candidate_context(
     household: Household,
     week_dates: list[date],
     learnings: str = "",
+    lunches: int = 0,
 ) -> str:
     """Compact indexed context: one cheap row per candidate (no ingredient
     dumps — the allergen math is deterministic code), with dietary conflicts
@@ -127,7 +128,13 @@ def build_candidate_context(
                 household.budget_cents_weekly if household.budget_enabled else None
             ),
         },
-        "week_dates": [d.isoformat() for d in week_dates],
+        "week_slots": [
+            {"date": d.isoformat(), "meal_type": "dinner"} for d in week_dates
+        ] + [
+            {"date": week_dates[0].isoformat(), "meal_type": "lunch",
+             "note": "batch-cooked on this day, eaten over the following days"}
+            for _ in range(lunches)
+        ],
         "candidates": candidate_rows,
         "perishable_overlap_sets": perishables,
         "learnings": learnings.strip() or None,
@@ -145,13 +152,14 @@ def propose_plan(
     household: Household,
     week_dates: list[date],
     learnings: str = "",
+    lunches: int = 0,
     variety_rules: VarietyRules | None = None,
     max_repairs: int = 2,
     revision_context: str | None = None,
 ) -> PlanRunResult:
     candidate_map = {r.id: r for r in candidates}
     context = build_candidate_context(
-        candidates, states, items, household, week_dates, learnings
+        candidates, states, items, household, week_dates, learnings, lunches
     )
     if revision_context:
         context += (

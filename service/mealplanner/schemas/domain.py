@@ -133,5 +133,8 @@ class Household(StrictModel):
     # under the substitute instead.
     item_substitutions: dict[str, str] = Field(default_factory=dict)
     dinners_per_week: int = Field(default=5, ge=1, le=7)
+    # Make-ahead lunches planned alongside dinners: lighter dishes (salads,
+    # grain bowls) batched once and eaten across several days.
+    lunches_per_week: int = Field(default=0, ge=0, le=3)
     budget_cents_weekly: int | None = None
     budget_enabled: bool = False

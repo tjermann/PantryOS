@@ -72,6 +72,7 @@ def generate_plan(
         household=config.household,
         week_dates=week_dates,
         learnings=store.load_learnings(),
+        lunches=config.household.lunches_per_week,
         variety_rules=VarietyRules(
             max_same_protein_per_week=config.variety.max_same_protein_per_week,
             repeat_window_days=config.variety.repeat_window_days,

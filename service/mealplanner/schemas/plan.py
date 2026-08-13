@@ -39,7 +39,8 @@ class PersonHandling(StrictModel):
 
 class PlanEntryProposal(StrictModel):
     recipe_id: str
-    date: str  # ISO date the dish is scheduled for
+    date: str  # ISO date the dish is scheduled for (lunches: the prep day)
+    meal_type: Literal["dinner", "lunch"] = "dinner"
     servings: int = Field(gt=0)
     rationale: str
     person_handling: list[PersonHandling] = Field(default_factory=list)

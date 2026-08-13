@@ -78,8 +78,9 @@ def build_weekly_email_context(
     people = {p.id: p.name for p in household.people}
 
     entries = []
+    lunches = []
     long_lead_notes = []
-    for e in sorted(plan.proposal.entries, key=lambda x: x.date):
+    for e in sorted(plan.proposal.entries, key=lambda x: (x.meal_type != "dinner", x.date)):
         recipe = recipes.get(e.recipe_id)
         if recipe is None:
             continue
@@ -106,9 +107,9 @@ def build_weekly_email_context(
                 handling.append(f"{name}: pull their portion before the restricted ingredient goes in")
             elif h.handling == "skip":
                 handling.append(f"{name}: eats separately tonight")
-        entries.append(
+        (lunches if e.meal_type == "lunch" else entries).append(
             {
-                "day": day,
+                "day": f"Make {day}" if e.meal_type == "lunch" else day,
                 "title": recipe.title,
                 "rationale": e.rationale,
                 "time_label": time_label,
@@ -170,6 +171,7 @@ def build_weekly_email_context(
         "assumed_on_hand": ", ".join(grocery.assumed_on_hand) or None,
         "removed_by_household": ", ".join(grocery.removed_by_household) or None,
         "entries": entries,
+        "lunches": lunches,
         "long_lead_notes": long_lead_notes,
         "perishable_notes": perishable_notes,
         "grocery_sections": grocery_sections,
