@@ -65,11 +65,22 @@ recipes, ratings, credentials — so backing PantryOS up means copying one
 folder. The container runs its own schedule and the family web page
 (`http://your-machine-ip:8321`); you don't need cron.
 
-Two caveats: set `TZ` in `docker-compose.yml` to your timezone so "Friday
-morning" means yours, and store sign-in needs a visible browser — run
-`mealplanner login` once on the host and copy the resulting
-`users/NAME/browser` folder into `data/users/NAME/`, or skip carts and take
-the emailed list.
+Signing in to your grocery store works from Docker too — it opens a real
+browser window on your screen:
+
+```bash
+xhost +local:root                                    # Linux, once per session
+docker compose run --rm login --user NAME --store STORE
+```
+
+(On a Mac, install [XQuartz](https://www.xquartz.org), tick "Allow connections
+from network clients", then `xhost + 127.0.0.1` and
+`export DISPLAY=host.docker.internal:0`.)
+
+That's the only step that needs a screen, and it's once per store. Everything
+after — weekly planning, cart filling, emails — is automatic inside the
+container. One setting to check: `TZ` in `docker-compose.yml`, so "Friday
+morning" means yours.
 
 The rest of this guide covers the non-Docker path.
 

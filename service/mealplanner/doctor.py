@@ -115,16 +115,22 @@ def run_doctor(check_email: bool = False) -> int:
 
     # --- automation ----------------------------------------------------
     print("\nAutomation")
-    try:
-        crontab = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
-        installed = crontab.stdout.count("pantryos-")
-    except Exception:
-        installed = 0
-    if installed >= 6:
-        print(_line(OK, f"Scheduled ({installed} jobs) — runs itself weekly"))
+    in_container = Path("/.dockerenv").exists()
+    if in_container:
+        # The container image runs `mealplanner scheduler --serve` as its
+        # command, so there's no cron to install.
+        print(_line(OK, "Built-in scheduler (container) — runs itself weekly"))
     else:
-        problems += 1
-        print(_line(BAD, "Not scheduled yet", "Run:  mealplanner install-cron"))
+        try:
+            crontab = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+            installed = crontab.stdout.count("pantryos-")
+        except Exception:
+            installed = 0
+        if installed >= 6:
+            print(_line(OK, f"Scheduled ({installed} jobs) — runs itself weekly"))
+        else:
+            problems += 1
+            print(_line(BAD, "Not scheduled yet", "Run:  mealplanner install-cron"))
 
     web_up = False
     try:

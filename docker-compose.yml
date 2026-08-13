@@ -5,9 +5,13 @@
 # everything into ./data, which stays on your machine):
 #     docker compose run --rm pantryos python -m mealplanner setup
 #
+# Sign in to a grocery store (opens a real browser window — see `login` below):
+#     xhost +local:root           # Linux, once per session
+#     docker compose run --rm login --user NAME --store STORE
+#
 # Everyday commands:
-#     docker compose logs -f                                    watch it work
-#     docker compose exec pantryos python -m mealplanner doctor  health check
+#     docker compose logs -f                                     watch it work
+#     docker compose exec pantryos python -m mealplanner doctor   health check
 #     docker compose exec pantryos python -m mealplanner run-weekly --user NAME --dry-run
 services:
   pantryos:
@@ -22,6 +26,23 @@ services:
     environment:
       # Set this to your machine's timezone so "Friday morning" means yours.
       TZ: ${TZ:-America/Chicago}
-    # Store sign-in needs a visible browser, which a container can't show.
-    # Run `mealplanner login` on the host once; copy the resulting
-    # users/<name>/browser folder into ./data/users/<name>/ and carts work here.
+
+  # One-time store sign-in. Needs to draw a browser window on your screen, so
+  # it borrows the host's display; everything after this is headless and
+  # automatic in the main container.
+  #   Linux:  xhost +local:root     (then run the command above)
+  #   macOS:  install XQuartz, enable "Allow connections from network clients",
+  #           then run:  xhost + 127.0.0.1  and set DISPLAY=host.docker.internal:0
+  login:
+    build: .
+    image: pantryos:latest
+    profiles: ["tools"]      # only runs when you ask for it
+    entrypoint: ["python", "-m", "mealplanner", "login"]
+    network_mode: host       # how the container reaches your X display
+    ipc: host                # Chromium needs real shared memory
+    volumes:
+      - ./data:/data
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro   # fallback for non-abstract sockets
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+      TZ: ${TZ:-America/Chicago}
