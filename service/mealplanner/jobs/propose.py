@@ -102,6 +102,14 @@ def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
     _proposal_email(user, config, store, result, recipes_by_id, week_dates, base, 1,
                     dry_run, sources)
     print(f"[{user}] proposal sent ({iso_week})")
+
+    # Same morning: ask how last week's meals actually went.
+    from .review import run_review
+
+    try:
+        run_review(user, base=base, dry_run=dry_run, today=today)
+    except Exception as exc:  # a review failure must never block the proposal
+        print(f"[{user}] review email skipped: {exc}")
     return 0
 
 

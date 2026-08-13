@@ -1,0 +1,16 @@
+HOW WAS LAST WEEK?
+
+Tap a star on anything you have an opinion about — two good ratings makes a
+dish a regular, two poor ones retires it. Replies work too.
+
+{% for m in meals %}{{ m.day }}{% if m.meal_type != 'dinner' %} ({{ m.meal_type }}){% endif %}: {{ m.title }}{% if m.source_label %} [from {{ m.source_label }}]{% endif %}
+{% if m.rated %}  already rated {{ m.current }} · {{ m.lifecycle }}
+{% endif %}{% if m.stars %}{% for n, link in m.stars %}  {{ n }}★: {{ link }}
+{% endfor %}  make it a regular: {{ m.keep_url }}
+  never again: {{ m.cut_url }}
+{% endif %}{% if m.url %}  recipe: {{ m.url }}
+{% endif %}
+{% endfor %}
+{% if feedback_url %}Add notes or tweak preferences: {{ feedback_url }}
+{% endif %}
+Or just reply to this email with any thoughts — they shape next week's plan.

@@ -107,6 +107,17 @@ def run_iterate_cmd(
     _run_for_each(_users(user, all_users), lambda u: run_iterate(u, dry_run=dry_run))
 
 
+@app.command("run-review")
+def run_review_cmd(
+    user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+):
+    """Email a 'how was last week?' review of the meals actually cooked."""
+    from .jobs.review import run_review
+
+    _run_for_each(_users(user, all_users), lambda u: run_review(u, dry_run=dry_run))
+
+
 @app.command("run-restock")
 def run_restock_cmd(
     user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),

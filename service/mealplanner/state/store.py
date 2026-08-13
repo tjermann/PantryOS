@@ -270,6 +270,18 @@ class StateStore:
         path = self.root / "plans" / f"{iso_week}.yaml"
         return yaml.safe_load(path.read_text()) if path.exists() else None
 
+    def last_executed_plan(self) -> tuple[str, dict[str, Any]] | None:
+        """The most recent plan that was actually ordered and cooked (status
+        'final') — what a 'how was last week?' review should ask about."""
+        plans_dir = self.root / "plans"
+        if not plans_dir.exists():
+            return None
+        for path in sorted(plans_dir.glob("*.yaml"), reverse=True):
+            data = yaml.safe_load(path.read_text()) or {}
+            if data.get("status") == "final":
+                return path.stem, data
+        return None
+
     def latest_plan(self) -> tuple[str, dict[str, Any]] | None:
         plans_dir = self.root / "plans"
         if not plans_dir.exists():
