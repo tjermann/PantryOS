@@ -310,6 +310,17 @@ def review_orders_cmd(
         typer.echo("Added to standing learnings (used in future planning).")
 
 
+@app.command()
+def doctor(
+    check_email: bool = typer.Option(False, "--check-email",
+                                     help="Also try logging in to the email account"),
+):
+    """Check the whole setup and say exactly what to fix next."""
+    from .doctor import run_doctor
+
+    raise typer.Exit(run_doctor(check_email=check_email))
+
+
 @app.command("validate-config")
 def validate_config_cmd(
     user: str = typer.Option(None), all_users: bool = typer.Option(False, "--all-users"),

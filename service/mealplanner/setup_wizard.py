@@ -222,11 +222,17 @@ def run_wizard(user: str | None = None, base: Path | None = None) -> Path:
         str(SERVICE_ROOT / "starter-recipes"),
     )
 
-    print("\n--- How should Claude be called? ---")
-    print("api        — Anthropic API key (pay per token; ~cents per week)")
-    print("claude-cli — headless Claude Code on this machine's Claude subscription")
-    print("             (no per-token cost; requires `claude` installed & signed in)")
-    llm_backend = _ask_choice("Backend", ["api", "claude-cli"], "api")
+    print("\n--- How should the AI planner be reached? ---")
+    print("api        — Anthropic API key (pay per use; roughly cents per week)")
+    print("claude-cli — Claude Code on this machine's Claude subscription")
+    print("             (no per-use cost; requires `claude` installed & signed in)")
+    print("local      — your own model on this machine or network")
+    print("             (Ollama, LM Studio, vLLM… free and private)")
+    llm_backend = _ask_choice("Backend", ["api", "claude-cli", "local"], "api")
+    local_base_url, local_model = None, None
+    if llm_backend == "local":
+        local_base_url = _ask("Endpoint URL", "http://localhost:11434/v1")
+        local_model = _ask("Model name", "llama3.1:8b")
 
     api_key = None
     if llm_backend == "api":
@@ -246,6 +252,8 @@ def run_wizard(user: str | None = None, base: Path | None = None) -> Path:
         timezone=timezone,
         email=EmailConfig(to=to),
         llm_backend=llm_backend,  # type: ignore[arg-type]
+        **({"local_base_url": local_base_url, "local_model": local_model}
+           if llm_backend == "local" else {}),
         anthropic_api_key=api_key,
         recipe_library=library,
         planning_day=planning_day,  # type: ignore[arg-type]

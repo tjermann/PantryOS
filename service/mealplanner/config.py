@@ -54,10 +54,14 @@ class UserConfig(BaseModel):
     name: str
     timezone: str = "America/New_York"
     email: EmailConfig
-    # "api" = Anthropic API key (user_info.json / env). "claude-cli" = headless
-    # Claude Code on the operator's Claude subscription — no per-token billing.
-    llm_backend: Literal["api", "claude-cli"] = "api"
+    # How Claude (or another model) is reached:
+    #   api        — Anthropic API key, pay per use (~cents/week)
+    #   claude-cli — headless Claude Code on a Claude subscription, no per-token cost
+    #   local      — your own OpenAI-compatible endpoint (Ollama, LM Studio, vLLM…)
+    llm_backend: Literal["api", "claude-cli", "local"] = "api"
     claude_cli_path: str = "claude"
+    local_base_url: str = "http://localhost:11434/v1"
+    local_model: str = "llama3.1:8b"
     # Optional; falls back to user_info.json, then the ANTHROPIC_API_KEY env var.
     anthropic_api_key: str | None = None
     model: str = "claude-opus-5"

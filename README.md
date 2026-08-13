@@ -47,13 +47,19 @@ order history and "that substitution worked" notes feed future planning.
 | `packages/engine/` | TypeScript reference implementation of the deterministic core (allergen backstop, variety rules, grocery pipeline). The Python core is a 1:1 port; the two test suites are the contract. |
 | `apps/mobile/`, `supabase/`, `packages/*` | A shelved mobile-app iteration kept for reference. |
 
+> **Never used a terminal?** [**GETTING-STARTED.md**](GETTING-STARTED.md) walks
+> through everything click by click — opening the terminal, making a Gmail app
+> password, choosing an AI option (including a free local model), and letting
+> your family in.
+
 ## Setup — three steps, no coding
 
 You need: a Linux or macOS computer that stays on (an old laptop or Raspberry
-Pi is perfect), a Gmail account, and Claude access — either a
+Pi is perfect), a Gmail account, and an AI to do the planning — a
 [Claude subscription](https://claude.com/claude-code) already signed in on the
-machine (no per-token cost) or an
-[Anthropic API key](https://console.anthropic.com/) (~cents per week).
+machine (no per-use cost), an [Anthropic API key](https://console.anthropic.com/)
+(~cents per week), or your own local model via
+[Ollama](https://ollama.com)/LM Studio (free, nothing leaves your house).
 
 **1. Install** — open a terminal and paste:
 

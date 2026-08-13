@@ -100,6 +100,61 @@ def test_model_aliases():
     assert _model_alias("some-custom-model") == "some-custom-model"
 
 
+class TestLocalBackend:
+    def _client(self, monkeypatch, replies):
+        import json as _json
+        from mealplanner.llm import local_backend
+
+        calls = []
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+            def read(self):
+                return _json.dumps(self._payload).encode()
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        def fake_urlopen(request, timeout=None):
+            calls.append(_json.loads(request.data))
+            return FakeResponse({
+                "choices": [{"message": {"content": replies.pop(0)}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            })
+
+        monkeypatch.setattr(local_backend.urllib.request, "urlopen", fake_urlopen)
+        return local_backend.LocalLlmClient("http://localhost:11434/v1", "llama3.1"), calls
+
+    def test_parses_openai_shape(self, monkeypatch):
+        client, calls = self._client(monkeypatch, ['{"ok": true, "note": "n"}'])
+        r = client.messages.parse(model="ignored", messages=[{"role": "user", "content": "go"}],
+                                  output_format=Answer)
+        assert r.parsed_output.ok is True
+        assert r.usage.input_tokens == 10
+        assert calls[0]["model"] == "llama3.1"      # config model wins
+        assert '"ok"' in calls[0]["messages"][0]["content"]  # schema in prompt
+
+    def test_retries_then_succeeds(self, monkeypatch):
+        client, calls = self._client(monkeypatch, ["not json at all", '{"ok": false, "note": "x"}'])
+        r = client.messages.parse(model="m", messages=[{"role": "user", "content": "go"}],
+                                  output_format=Answer)
+        assert r.parsed_output.ok is False and len(calls) == 2
+
+    def test_selected_by_config(self):
+        from mealplanner.llm.local_backend import LocalLlmClient
+
+        config = UserConfig(
+            name="T", email=EmailConfig(to=["t@example.com"]), recipe_library="/tmp",
+            llm_backend="local", local_base_url="http://box:1234/v1", local_model="mistral",
+            household=Household(id="t", name="T", people=[{"id": "p", "name": "P"}]),
+        )
+        client = client_for_user(config)
+        assert isinstance(client, LocalLlmClient)
+        assert client.base_url == "http://box:1234/v1" and client.model == "mistral"
+
+
 def test_backend_selection_needs_no_api_key():
     config = UserConfig(
         name="T", email=EmailConfig(to=["t@example.com"]), recipe_library="/tmp",
