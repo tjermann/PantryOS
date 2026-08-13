@@ -49,6 +49,48 @@ git --version && python3 --version
 
 ---
 
+## Easiest path: let Claude Code do the setup
+
+If you have [Claude Code](https://claude.com/claude-code) (it comes with a Claude
+Pro or Max subscription), it can do nearly all of this for you — installing,
+writing your household's settings, importing recipes, and turning on the
+schedule. The repo ships instructions Claude reads automatically.
+
+**1. Get the code.** Open a terminal (see Step 1 below if you've never done
+that) and run:
+
+```bash
+git clone https://github.com/tjermann/PantryOS.git
+cd PantryOS
+claude
+```
+
+**2. Ask it to set things up.** Paste this:
+
+> Please set up PantryOS for my household by following the setup runbook in
+> CLAUDE.md. Ask me questions one at a time — I'm not technical, so keep it
+> simple and tell me when you need something from me.
+
+It will install everything, interview you about who eats and what they can't
+eat, import recipes from sites you name, and switch on the weekly schedule.
+Expect it to take 20–30 minutes, most of it recipe importing that runs in the
+background while you keep talking.
+
+**3. Three things it can't do for you** — it will pause and ask:
+
+| It needs | Why |
+|---|---|
+| Your **Gmail app password** | Only you can create it (Step 3 below walks through the clicks — about two minutes). You paste the 16-letter code; Claude puts it in the right file. |
+| Your **grocery store sign-in** | A browser window opens and *you* type your password and any verification code. PantryOS never sees or stores it. |
+| Your **preferences** | Who eats, allergies, how many dinners, which stores, your budget. Nobody can guess these. |
+
+**4. Anything you want changed later,** just ask it in plain language — "we
+don't eat pork", "make the meals quicker", "add recipes from this website",
+"the family page stopped working". It knows where each of those lives.
+
+If you'd rather do it yourself, or you don't have Claude Code, the manual
+walkthrough continues below and works exactly the same.
+
 ## Shortcut: if you already use Docker
 
 Skip Steps 1–2 and 8 entirely:

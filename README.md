@@ -47,10 +47,15 @@ order history and "that substitution worked" notes feed future planning.
 | `packages/engine/` | TypeScript reference implementation of the deterministic core (allergen backstop, variety rules, grocery pipeline). The Python core is a 1:1 port; the two test suites are the contract. |
 | `apps/mobile/`, `supabase/`, `packages/*` | A shelved mobile-app iteration kept for reference. |
 
-> **Never used a terminal?** [**GETTING-STARTED.md**](GETTING-STARTED.md) walks
-> through everything click by click — opening the terminal, making a Gmail app
-> password, choosing an AI option (including a free local model), and letting
-> your family in.
+> **Have Claude Code?** Clone the repo, run `claude` in the folder, and say
+> *"set up PantryOS for my household following the runbook in CLAUDE.md"* — it
+> installs, interviews you, imports recipes, and turns on the schedule. Details
+> in [GETTING-STARTED.md](GETTING-STARTED.md).
+>
+> **Never used a terminal?** [**GETTING-STARTED.md**](GETTING-STARTED.md) also
+> walks through everything click by click — opening the terminal, making a Gmail
+> app password, choosing an AI option (including a free local model), and
+> letting your family in.
 
 ## Docker
 

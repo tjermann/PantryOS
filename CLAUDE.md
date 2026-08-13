@@ -1,51 +1,113 @@
-# Meal Planner — AI-assisted family meal planning & grocery ordering
+# PantryOS — self-hosted family meal planning
 
-**Current product: `service/` — a self-hosted Python cron service.** Anyone clones the
-repo, runs the setup questionnaire, supplies their own credentials (Anthropic API key,
-Gmail app password, store logins via headed browser), and gets weekly Claude-planned
-menus, grocery lists, Playwright-preloaded carts (human always submits), and emails.
-Household members give feedback through signed web links (`mealplanner serve`).
-See `service/README.md` for the quickstart; tests: `service/.venv/bin/python -m pytest`.
+A cron-driven Python service (`service/`): it plans a week of dinners with an AI,
+emails the household a proposal, folds in their feedback, builds the grocery list,
+fills the store cart for a human to submit, and learns from ratings and replies.
 
-The TypeScript monorepo below is the SHELVED mobile-app iteration. `packages/engine`
-remains the reference implementation the Python core was ported from — keep the two in
-sync if engine logic changes.
+**If the person asks you to set PantryOS up for them, follow the runbook below.**
+Everything else in this file is context for working on the code.
 
-## Layout
+---
 
-- `apps/mobile` — Expo app (expo-router). Screens only; domain logic lives in packages.
-- `packages/engine` — **pure TypeScript, zero React Native imports.** Deterministic core:
-  allergen backstop, candidate filtering, variety scoring, grocery pipeline, validators,
-  versioned prompts (`src/prompts/v1/`), zod schemas. Must run in plain Node.
-- `packages/retailers` — `RetailerAdapter` interface + per-retailer adapters
-  (share-export, instacart, kroger, walmart). Checkout always happens in the retailer's app.
-- `packages/db` — Supabase generated types + sync protocol types.
-- `packages/ui` — shared components.
-- `supabase/` — SQL migrations (schema + RLS), Edge Functions, seed data.
-- `content/` — seed-recipe authoring pipeline. **Licensing rule: no scraped content, ever.**
+## Setup runbook (for a fresh clone)
+
+Work through these in order. Ask for one thing at a time, keep explanations short,
+and check your work with `doctor` at the end. **Never invent credentials or guess at
+household details — ask.**
+
+1. **Install.** `cd service && python3 -m venv .venv && .venv/bin/pip install -e .`
+   then `.venv/bin/playwright install chromium`. (Python 3.11+ required. If `venv`
+   fails on Debian/Ubuntu, tell them to run `sudo apt install python3-venv` — do not
+   run sudo yourself.)
+
+2. **Credentials → `service/user_info.json`** (gitignored; `chmod 600`). Copy
+   `sample_user_info.json` and fill in:
+   - `email.address` / `email.app_password` — a **Gmail app password**, not their
+     normal password. Walk them through it: 2-Step Verification on, then
+     myaccount.google.com/apppasswords → name it PantryOS → 16-letter code. You
+     cannot create this for them; ask them to paste it.
+   - `anthropic_api_key` — only needed for the `api` backend (see step 4).
+
+3. **Household config.** Either run `.venv/bin/python -m mealplanner setup`
+   (interactive questionnaire — they answer, not you), **or** interview them
+   conversationally and write `service/users/<name>/config.yaml` yourself. The
+   second is usually nicer. Ask about: who eats (and whether kids eat the planned
+   dinners), per-person allergies with severity, dinners and make-ahead lunches per
+   week, planning day, kitchen equipment they actually own, budget, stores, staples
+   they always have, recipient emails. Validate with
+   `.venv/bin/python -m mealplanner validate-config --user <name>`.
+
+4. **AI backend** — ask which they want:
+   - `claude-cli` — free with a Claude subscription; needs Claude Code installed and
+     signed in. Set `claude_cli_path` to the absolute path (`which claude`) so cron
+     can find it.
+   - `api` — Anthropic API key, a few cents a week.
+   - `local` — their own Ollama/LM Studio endpoint; set `local_base_url`/`local_model`.
+
+5. **Recipes.** Add their favorite recipe sites to `recipe_sources` in the config,
+   then `.venv/bin/python -m mealplanner discover-recipes --user <name> --total 40`.
+   Set `source_policy: exclusive` if they only want those sites. This takes a while —
+   run it in the background and keep going.
+
+6. **Store login.** `.venv/bin/python -m mealplanner login --user <name> --store <id>`
+   opens a real browser; **they** type the password and 2FA. You never handle store
+   credentials. Skippable — without it they get emailed lists instead of filled carts.
+
+7. **Go live.** `install-cron` (or `docker compose up -d`), then
+   `restart-serve` for the family web page. Set `web_base_url` in the config to
+   `http://<lan-ip>:8321` so email links work.
+
+8. **Verify.** `.venv/bin/python -m mealplanner doctor` — fix anything marked ✗, then
+   show them a preview: `run-weekly --user <name> --dry-run --force`.
+
+Ongoing requests you'll get: "add this recipe site", "we don't eat X", "make the
+meals quicker". Preferences that are *judgment* go in `users/<name>/state/learnings.md`
+(free text, read by the planner every week); preferences that are *rules* go in
+`config.yaml` (`avoid_proteins`, `item_substitutions`, equipment, budget).
+
+---
 
 ## Hard rules
 
-1. **Allergen logic is code-only, never LLM.** Every Claude-proposed plan passes through
-   `packages/engine/src/allergen/backstop.ts` before display/save. Allergy severity = hard
-   fail. Matching is via the item→allergen ontology (with negative assertions like
-   coconut milk ≠ dairy) — never substring matching.
-2. **User's Anthropic API key**: device secure storage only (expo-secure-store). Never
-   synced, never logged, never sent to our backend. Retailer passwords: never collected.
-3. **`published_time` and `real_time` are never merged.** real_time comes from cook-session
-   timestamps only.
-4. Dietary restrictions are **per person**, with handling Clear / Substitute / Split / Skip.
-5. Prompts are versioned files in git; saved plans record `prompt_version` + `model`.
+1. **Allergen logic is code, never the model.** Every proposed plan passes through
+   `service/mealplanner/allergen/backstop.py` before anyone sees it. Allergy severity
+   is a hard fail; unknown ingredients fail closed. Matching uses the item→allergen
+   ontology with negative assertions (coconut milk ≠ dairy) — never substring matching.
+2. **Secrets never enter git.** `user_info.json` and `service/users/**` are gitignored
+   and stay that way. Store passwords are never collected at all — sign-in happens in
+   the user's own browser.
+3. **The human submits the order.** Cart automation stops at the cart page, always.
+4. **Dietary restrictions are per person**, with handling Clear / Substitute / Split / Skip.
+5. **`published_time` and `real_time` never merge.** real_time comes only from measured
+   cook sessions.
+6. **Recipes are for the household that imported them** — no redistribution, and no
+   scraped content ships in the repo. `starter-recipes/` is original content only.
 
 ## Commands
 
-- `pnpm install` at root (pnpm workspaces + turbo)
-- `pnpm test` — vitest across packages (engine tests are the contract; no live API in CI)
-- `pnpm typecheck`
-- Engine only: `pnpm --filter @meal-planner/engine test`
+Run from `service/` (or prefix with `service/.venv/bin/`):
 
-## Source material
+```
+python -m pytest                       # 100+ tests, no network needed
+python -m mealplanner doctor           # health check with fixes
+python -m mealplanner run-propose --user X --dry-run --force   # preview a proposal
+python -m mealplanner run-weekly  --user X --dry-run --force   # preview the full run
+python -m mealplanner --help           # everything else
+```
 
-The original prompt-based system lives at `../Claude-Meals/` (read-only reference).
-Its `1-engine/SYSTEM.md` is the source of prompt v1; its 98-recipe library is the import
-parser's golden corpus — that content is paywalled ATK/NYT and must never ship in-app.
+Tests are the contract for the deterministic core (allergens, variety, grocery
+pipeline). No live API calls in tests — LLM backends are faked.
+
+## Layout
+
+- `service/mealplanner/` — the product.
+  - `allergen/`, `planning/`, `grocery/` — deterministic core; no LLM involvement
+  - `llm/` — three interchangeable backends (`api`, `claude-cli`, `local`), all
+    duck-typed to `messages.parse()`; validation + repair loop makes weak models safe
+  - `jobs/` — propose / iterate / weekly / review / restock / tonight
+  - `carts/` — Playwright store drivers, YAML selector packs with fallback chains
+  - `web/` — the family feedback page (escape all user content: `esc()`/`q()`)
+  - `recipes/` — library reader, URL import, site discovery
+- `service/users/<name>/` — private per-household data (gitignored)
+- `packages/`, `apps/`, `supabase/` — **archived** TypeScript/mobile iteration.
+  `packages/engine` is the reference implementation the Python core was ported from.
