@@ -23,7 +23,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from itsdangerous import (
+    BadSignature,
+    SignatureExpired,
+    URLSafeSerializer,
+    URLSafeTimedSerializer,
+)
 
 # Links live in emails people keep, but not forever — a stale link from an old
 # inbox shouldn't still steer next year's groceries.
@@ -60,6 +65,11 @@ def _serializer(user: str, base: Path | None = None) -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(_secret_for(user, base), salt="mealplanner-web")
 
 
+def _legacy_serializer(user: str, base: Path | None = None) -> URLSafeSerializer:
+    """Tokens issued before links gained expiry — emails people already have."""
+    return URLSafeSerializer(_secret_for(user, base), salt="mealplanner-web")
+
+
 def feedback_url(user: str, base_url: str, base: Path | None = None) -> str:
     token = _serializer(user, base).dumps({"u": user})
     return f"{base_url}/u/{user}?t={token}"
@@ -85,7 +95,11 @@ def _check(user: str, token: str | None, base: Path | None = None) -> dict:
             403, "this link has expired — use the one from a recent planner email"
         )
     except BadSignature:
-        raise HTTPException(403, "bad token — use the link from your email")
+        # Links from emails sent before expiry existed still work.
+        try:
+            data = _legacy_serializer(user, base).loads(token)
+        except BadSignature:
+            raise HTTPException(403, "bad token — use the link from your email")
     if data.get("u") != user:
         raise HTTPException(403, "token is for a different user")
     return data

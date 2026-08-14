@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Literal, Mapping
 
 from ..schemas.domain import Household, HouseholdRecipeState, Recipe, Season
@@ -30,7 +31,7 @@ def season_for_month(month: int, region: Literal["northern", "southern"]) -> Sea
 
 RejectReason = Literal[
     "out_of_season", "lifecycle_cut", "missing_equipment", "avoided_protein",
-    "not_dinner",
+    "not_dinner", "made_recently",
 ]
 
 
@@ -67,12 +68,18 @@ def filter_candidates(
     states: Mapping[str, HouseholdRecipeState],
     household: Household,
     month: int,
+    today: date | None = None,
+    repeat_window_days: int = 0,
 ) -> tuple[list[Recipe], list[RejectedCandidate]]:
     """Deterministic candidate pool: in-season (or year-round), not Cut, and the
     household owns all required equipment."""
     season = season_for_month(month, household.region)
     owned = set(household.equipment)
     avoided = {p.lower() for p in household.avoid_proteins}
+    cutoff = (
+        (today or date.today()) - timedelta(days=repeat_window_days)
+        if repeat_window_days > 0 else None
+    )
     candidates: list[Recipe] = []
     rejected: list[RejectedCandidate] = []
 
@@ -87,6 +94,15 @@ def filter_candidates(
         if recipe.dish_type != "dinner":
             rejected.append(RejectedCandidate(recipe.id, "not_dinner"))
             continue
+        # Hard rule, not a hint: a dish cooked recently is off the table. The
+        # model can't talk itself past this the way it could a warning.
+        if cutoff is not None and state is not None and state.last_made_at:
+            try:
+                if date.fromisoformat(state.last_made_at) >= cutoff:
+                    rejected.append(RejectedCandidate(recipe.id, "made_recently"))
+                    continue
+            except ValueError:
+                pass
         if "year_round" not in recipe.seasons and season not in recipe.seasons:
             rejected.append(RejectedCandidate(recipe.id, "out_of_season"))
             continue

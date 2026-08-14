@@ -232,6 +232,11 @@ def run_weekly(
             "review": None,  # filled in by `mealplanner review-orders`
         },
     )
+    # These dishes are now on the calendar — record it so the don't-repeat
+    # window works even when nobody gets around to rating anything.
+    store.mark_planned(
+        [e.recipe_id for e in result.proposal.entries], week_dates[0]
+    )
     # The order is in: restock needs are satisfied and anything the cart
     # couldn't find is assumed sourced elsewhere — nothing carries forward.
     store.clear_after_order()

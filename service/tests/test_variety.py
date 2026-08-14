@@ -67,6 +67,47 @@ class TestValidateVariety:
         assert violations[0].severity == "error"
 
 
+class TestRepeatExclusion:
+    def test_recent_recipes_are_hard_filtered(self):
+        from datetime import date
+
+        household = make_household()
+        recipes = [make_recipe("fresh"), make_recipe("cooked-last-week", protein="beef")]
+        states = state_map([{"recipe_id": "cooked-last-week", "last_made_at": "2026-08-08"}])
+        candidates, rejected = filter_candidates(
+            recipes, states, household, month=8,
+            today=date(2026, 8, 15), repeat_window_days=21,
+        )
+        assert [r.id for r in candidates] == ["fresh"]
+        assert ("cooked-last-week", "made_recently") in {(r.recipe_id, r.reason) for r in rejected}
+
+    def test_window_expires(self):
+        from datetime import date
+
+        states = state_map([{"recipe_id": "old", "last_made_at": "2026-06-01"}])
+        candidates, _ = filter_candidates(
+            [make_recipe("old")], states, make_household(), month=8,
+            today=date(2026, 8, 15), repeat_window_days=21,
+        )
+        assert [r.id for r in candidates] == ["old"]  # long enough ago, back in play
+
+    def test_marking_planned_drives_the_filter(self, tmp_path):
+        from datetime import date
+
+        from mealplanner.state.store import StateStore
+
+        store = StateStore(tmp_path)
+        store.mark_planned(["dish-a", "dish-b"], date(2026, 8, 8))
+        states = store.load_recipe_states()
+        assert states["dish-a"].last_made_at == "2026-08-08"
+        assert states["dish-a"].times_made == 1
+        candidates, _ = filter_candidates(
+            [make_recipe("dish-a")], states, make_household(), month=8,
+            today=date(2026, 8, 15), repeat_window_days=21,
+        )
+        assert candidates == []
+
+
 class TestCapCandidates:
     def test_keepers_always_survive_and_pool_rotates_weekly(self):
         from mealplanner.planning.candidates import cap_candidates

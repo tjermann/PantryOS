@@ -51,7 +51,8 @@ def generate_plan(
     sources = {e.recipe.id: e.source for e in library if e.source}
     states = store.load_recipe_states()
     candidates, rejected = filter_candidates(
-        [e.recipe for e in library], states, config.household, week_dates[0].month
+        [e.recipe for e in library], states, config.household, week_dates[0].month,
+        today=week_dates[0], repeat_window_days=config.variety.repeat_window_days,
     )
     if not candidates:
         raise RuntimeError("no candidate recipes (library empty or all filtered)")

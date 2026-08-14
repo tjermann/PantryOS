@@ -94,6 +94,18 @@ class StateStore:
         self.save_recipe_states(states)
         return state
 
+    def mark_planned(self, slugs: list[str], made_on: date) -> None:
+        """Record that these recipes are on the plate this week. Without this,
+        nothing knows a dish was cooked unless someone rates it — and the
+        don't-repeat rule silently never fires."""
+        states = self.load_recipe_states()
+        for slug in slugs:
+            state = states.get(slug) or HouseholdRecipeState(recipe_id=slug)
+            state.last_made_at = made_on.isoformat()
+            state.times_made += 1
+            states[slug] = state
+        self.save_recipe_states(states)
+
     def set_lifecycle(self, slug: str, lifecycle: str) -> HouseholdRecipeState:
         states = self.load_recipe_states()
         state = states.get(slug) or HouseholdRecipeState(recipe_id=slug)
