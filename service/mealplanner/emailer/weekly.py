@@ -151,20 +151,26 @@ def build_weekly_email_context(
         lines = grocery.sections.get(key)  # type: ignore[arg-type]
         if not lines:
             continue
+        from ..grocery.display import collapse_rows
+
+        tags = {
+            l.display_name: (
+                "restock" if l.origin == "restock"
+                else "standing" if l.origin == "standing"
+                else "pantry-adjusted" if l.pantry_adjusted
+                else None
+            )
+            for l in lines
+        }
         grocery_sections.append(
             {
                 "label": SECTION_LABELS[key],
                 "lines": [
                     {
-                        "text": f"{l.display_name}{_fmt_qty(l.qty, l.unit)}",
-                        "tag": (
-                            "restock" if l.origin == "restock"
-                            else "standing" if l.origin == "standing"
-                            else "pantry-adjusted" if l.pantry_adjusted
-                            else None
-                        ),
+                        "text": f"{name}{f' — {qty}' if qty else ''}",
+                        "tag": tags.get(name),
                     }
-                    for l in lines
+                    for name, qty in collapse_rows(lines)
                 ],
             }
         )

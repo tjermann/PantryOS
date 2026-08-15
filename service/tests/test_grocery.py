@@ -250,3 +250,32 @@ def test_detect_long_lead_threshold():
     flags = detect_long_lead(recipe)
     assert len(flags) == 1
     assert flags[0].step_order == 1 and flags[0].lead_min == 240
+
+
+class TestDisplayCollapse:
+    """One item, one row — even when its quantities can't be added together."""
+
+    def test_same_item_different_dimensions_becomes_one_row(self):
+        from mealplanner.grocery.display import collapse_rows
+
+        class L:
+            def __init__(self, name, qty, unit):
+                self.display_name, self.qty, self.unit = name, qty, unit
+
+        rows = collapse_rows([
+            L("Yellow onions", 1, "cup"),
+            L("Yellow onions", 1, None),
+            L("Limes", 3, None),
+        ])
+        assert rows == [("Yellow onions", "1 cup + 1"), ("Limes", "3")]
+
+    def test_identical_quantities_are_not_repeated(self):
+        from mealplanner.grocery.display import collapse_rows
+
+        class L:
+            def __init__(self, name, qty, unit):
+                self.display_name, self.qty, self.unit = name, qty, unit
+
+        assert collapse_rows([L("Dill", 1, "bunch"), L("Dill", 1, "bunch")]) == [
+            ("Dill", "1 bunch")
+        ]

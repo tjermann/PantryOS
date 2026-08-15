@@ -203,6 +203,14 @@ small {{ color: #888; }}
 def create_app(base: Path | None = None) -> FastAPI:
     app = FastAPI(title="Meal Planner", docs_url=None, redoc_url=None)
 
+    @app.middleware("http")
+    async def no_stale_pages(request: Request, call_next):
+        """Every page here reflects state that just changed — a cached copy
+        after a save reads as 'my change didn't take'."""
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+        return response
+
     @app.get("/", response_class=HTMLResponse)
     def index():
         users = ", ".join(list_users(base)) or "none yet — run `mealplanner setup`"
@@ -304,20 +312,32 @@ def create_app(base: Path | None = None) -> FastAPI:
                     rows.append(f"<h3 style='font-size:13px;margin:10px 0 2px;"
                                 f"color:#c96f4a;text-transform:uppercase;'>"
                                 f"{section.replace('_', ' ')}</h3>")
-                    for line in lines:
-                        from ..grocery.parse import format_qty
+                    from ..grocery.display import collapse_rows
 
-                        pretty = format_qty(line.qty, line.unit)
+                    for name, pretty in collapse_rows(lines):
                         rows.append(_checkbox(
-                            line.display_name, f" — {pretty}" if pretty else "", False
+                            name, f" — {pretty}" if pretty else "", False
                         ))
                 if grocery.removed_by_household:
                     rows.append("<h3 style='font-size:13px;margin:12px 0 2px;color:#999;'>"
                                 "MARKED AS HAVE ENOUGH</h3>")
                     rows.extend(_checkbox(n, "", True)
                                 for n in grocery.removed_by_household)
+                # Name the meals it's buying for — otherwise a list that just
+                # changed with your picks is indistinguishable from one that
+                # didn't.
+                from ..planning.selection import resolve_selection
+
+                lib = _library_index(user, config, base)
+                covers = ", ".join(
+                    lib[e["recipe_id"]].recipe.title if e["recipe_id"] in lib
+                    else e["recipe_id"].replace("-", " ")
+                    for e in resolve_selection(plan, config.household)
+                )
                 parts.append(
                     f"<h2>This week's grocery list</h2><div class='card'>"
+                    f"<p style='font-size:13px;'><strong>Buying for:</strong> "
+                    f"{esc(covers)}</p>"
                     f"<p><small>Check anything you already have enough of, then hit "
                     f"Update — checked items won't be bought this week. (Permanent "
                     f"staples are handled separately below.)</small></p>"
