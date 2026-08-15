@@ -85,6 +85,87 @@ def recipe_url(user: str, base_url: str, slug: str, base: Path | None = None) ->
     return f"{base_url}/r/{user}/{slug}?t={token}"
 
 
+def _library_index(user: str, config, base: Path | None = None) -> dict:
+    """recipe_id -> library entry, for titles and metadata on the picker."""
+    from ..recipes.merged import load_full_library
+
+    return {e.recipe.id: e for e in load_full_library(user, config.recipe_library, base)}
+
+
+def _picker_html(user: str, config, store, plan: dict, t: str | None,
+                 base: Path | None = None) -> str:
+    """The 'pick this week's meals' form — only shown when the proposal holds
+    more options than the household will actually cook."""
+    pick_d = int(plan.get("select_dinners") or config.household.dinners_per_week)
+    pick_l = int(plan.get("select_lunches") or config.household.lunches_per_week)
+    entries = plan.get("entries", [])
+    dinners = [e for e in entries if (e.get("meal_type") or "dinner") == "dinner"]
+    lunches = [e for e in entries if e.get("meal_type") == "lunch"]
+    if len(dinners) <= pick_d and len(lunches) <= pick_l:
+        return ""  # nothing to choose between
+
+    library = _library_index(user, config, base)
+    chosen = set(plan.get("selected") or [])
+    s = _serializer(user, base)
+    recipe_t = s.dumps({"u": user})
+
+    def option(entry: dict, field: str, index: int, default_count: int) -> str:
+        slug = entry.get("recipe_id", "")
+        item = library.get(slug)
+        recipe = item.recipe if item else None
+        title = recipe.title if recipe else slug.replace("-", " ").title()
+        # Before anyone picks, the planner's top options are what would happen —
+        # pre-check them so submitting unchanged is a real (and correct) choice.
+        checked = slug in chosen if chosen else index < default_count
+        bits = []
+        if recipe:
+            bits.append(esc(recipe.protein))
+            bits.append(esc(recipe.cuisine))
+            if recipe.published_time_min:
+                bits.append(f"~{recipe.published_time_min} min")
+        source = (item.source if item else None) or ""
+        if source.startswith("http"):
+            from urllib.parse import urlparse
+
+            bits.append(esc(urlparse(source).netloc.removeprefix("www.")))
+        return (
+            f"<label style='display:block;padding:8px 10px;margin:6px 0;border:1px solid #ddd;"
+            f"border-radius:6px;font-size:14px;'>"
+            f"<input type='checkbox' name='{field}' value=\"{esc(slug)}\""
+            f"{' checked' if checked else ''} style='width:auto;margin-right:8px'>"
+            f"<strong>{esc(title)}</strong>"
+            f"<div style='margin-left:24px;color:#777;font-size:12px;'>{' · '.join(bits)}</div>"
+            f"<div style='margin-left:24px;font-size:13px;'>{esc(entry.get('rationale', ''))}</div>"
+            f"<div style='margin-left:24px;'>"
+            f"<a href='/r/{q(user)}/{q(slug)}?t={recipe_t}' style='font-size:12px;'>view recipe →</a>"
+            f"</div></label>"
+        )
+
+    rows = [f"<h3 style='font-size:14px;margin:14px 0 4px;'>Dinners — pick {pick_d}</h3>"]
+    rows += [option(e, "dinner", i, pick_d) for i, e in enumerate(dinners)]
+    if lunches:
+        rows.append(f"<h3 style='font-size:14px;margin:14px 0 4px;'>Lunch — pick {pick_l}</h3>")
+        rows += [option(e, "lunch", i, pick_l) for i, e in enumerate(lunches)]
+
+    status = (
+        f"<p><small>Chosen: {len(chosen)} so far. Change them any time today.</small></p>"
+        if chosen else
+        f"<p><small>Nothing chosen yet — the boxes below are ticked with what happens "
+        f"if you leave it alone.</small></p>"
+    )
+    return (
+        f"<h2>Pick this week's meals</h2><div class='card'>"
+        f"<p><small>Tick {pick_d} dinners"
+        f"{f' and {pick_l} lunch' if lunches else ''}, then hit Save. The grocery list "
+        f"below updates to match. Tomorrow morning the cart is filled from your picks."
+        f"</small></p>{status}"
+        f"<form method='post' action='/select/{q(user)}'>"
+        f"<input type='hidden' name='t' value='{esc(t)}'>"
+        + "".join(rows)
+        + "<button style='margin-top:10px'>Save picks</button></form></div>"
+    )
+
+
 def _check(user: str, token: str | None, base: Path | None = None) -> dict:
     if not token:
         raise HTTPException(403, "missing token — use the link from your email")
@@ -156,6 +237,9 @@ def create_app(base: Path | None = None) -> FastAPI:
             parts.append(f"<div class='msg'>{esc(saved)}</div>")
 
         latest = store.latest_plan()
+        if latest and latest[1].get("status") == "proposed":
+            parts.append(_picker_html(user, config, store, latest[1], t, base))
+
         parts.append("<h2>Rate recent dinners</h2>")
         if latest:
             _, plan = latest
@@ -419,6 +503,39 @@ planner up to run <code>mealplanner setup</code>.</small></p>
         return PAGE.format(
             body=f"<h1>Done</h1><div class='msg'><strong>{esc(slug)}</strong> {verdict}.</div>"
         )
+
+    @app.post("/select/{user}")
+    def select(user: str, t: str = Form(...),
+               dinner: list[str] = Form(default=[]),
+               lunch: list[str] = Form(default=[])):
+        from urllib.parse import quote
+
+        _check(user, t, base)
+        config = load_user_config(user, base)
+        store = StateStore(user_dir(user, base))
+        latest = store.latest_plan()
+        if latest is None or latest[1].get("status") != "proposed":
+            return RedirectResponse(
+                f"/u/{q(user)}?t={t}&saved=That+plan+is+already+final", status_code=303
+            )
+        iso_week, plan = latest
+        pick_d = int(plan.get("select_dinners") or config.household.dinners_per_week)
+        pick_l = int(plan.get("select_lunches") or config.household.lunches_per_week)
+        # Over-picking is the one case we refuse: silently dropping a meal
+        # someone deliberately ticked would be worse than asking again.
+        if len(dinner) > pick_d or len(lunch) > pick_l:
+            msg = (f"Too many picked — choose at most {pick_d} dinners"
+                   f"{f' and {pick_l} lunch' if pick_l else ''}. Nothing saved.")
+            return RedirectResponse(f"/u/{q(user)}?t={t}&saved={quote(msg)}", status_code=303)
+
+        valid = {e.get("recipe_id") for e in plan.get("entries", [])}
+        selected = [s for s in [*dinner, *lunch] if s in valid]
+        store.save_plan(iso_week, {**plan, "selected": selected})
+        short = pick_d - len(dinner)
+        msg = f"Saved {len(dinner)} dinner(s)" + (f" and {len(lunch)} lunch" if pick_l else "")
+        if short > 0:
+            msg += f" — we'll add the top {short} unpicked option(s) to fill the week"
+        return RedirectResponse(f"/u/{q(user)}?t={t}&saved={quote(msg)}", status_code=303)
 
     @app.post("/note/{user}")
     def note(user: str, t: str = Form(...), slug: str = Form(...), note: str = Form("")):

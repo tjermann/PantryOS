@@ -1,27 +1,33 @@
-{% if proposal_note %}PROPOSED DINNERS — {{ week_label }}
+{% if shortlist %}PICK THIS WEEK'S MEALS — {{ week_label }}
+!! {{ proposal_note }}
+{% if shortlist.url %}
+Choose here: {{ shortlist.url }}
+{% endif %}{% elif proposal_note %}PROPOSED DINNERS — {{ week_label }}
 !! {{ proposal_note }}
 {% else %}THIS WEEK'S DINNERS — {{ week_label }}{% endif %}
 {% if long_lead_notes %}
 START AHEAD:
 {% for note in long_lead_notes %}  ! {{ note }}
 {% endfor %}{% endif %}
-{% for e in entries %}
-{{ e.day }}: {{ e.title }}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
+{% if shortlist %}
+DINNER OPTIONS — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }}
+{% endif %}{% for e in entries %}
+{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
   {{ e.rationale }}
 {% if e.source and e.source.startswith('http') %}  Source: {{ e.source }}
 {% endif %}{% if e.url %}  Recipe: {{ e.url }}
 {% endif %}{% for h in e.handling %}  - {{ h }}
 {% endfor %}{% endfor %}
 {% if lunches %}
-MAKE-AHEAD LUNCH
-{% for e in lunches %}{{ e.day }}: {{ e.title }}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
+{% if shortlist %}LUNCH OPTIONS — pick {{ shortlist.pick_lunches }} of {{ shortlist.lunch_options }}{% else %}MAKE-AHEAD LUNCH{% endif %}
+{% for e in lunches %}{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
   {{ e.rationale }}
 {% if e.url %}  Recipe: {{ e.url }}
 {% endif %}{% endfor %}{% endif %}
 {% if perishable_notes %}
 No-waste pairings: {{ perishable_notes }}
 {% endif %}
-GROCERY LIST
+GROCERY LIST{% if shortlist %} (covers the default picks — updates when you choose){% endif %}
 {% if budget_line %}{{ budget_line }}
 {% endif %}{% if assumed_on_hand %}Assumed already in your pantry (not bought): {{ assumed_on_hand }}
 {% endif %}{% if removed_by_household %}Removed during review (you have enough): {{ removed_by_household }}

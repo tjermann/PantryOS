@@ -29,6 +29,17 @@ def iso_week_of(day: date) -> str:
     return f"{cal.year}-W{cal.week:02d}"
 
 
+def _scaled_protein_cap(config: UserConfig, shortlist: bool) -> int:
+    """Same rule ('not three chicken dinners'), measured against however many
+    dishes are on the list."""
+    cap = config.variety.max_same_protein_per_week
+    if not shortlist:
+        return cap
+    household = config.household
+    ratio = household.shortlist_dinners / max(household.dinners_per_week, 1)
+    return max(cap, round(cap * ratio))
+
+
 def generate_plan(
     user: str,
     config: UserConfig,
@@ -36,6 +47,7 @@ def generate_plan(
     week_dates: list[date],
     base: Path | None = None,
     revision_context: str | None = None,
+    shortlist: bool = False,
 ) -> tuple[PlanRunResult, dict[str, Recipe], dict[str, str]]:
     items = load_ontology()
     from ..recipes.merged import apply_source_policy
@@ -73,12 +85,21 @@ def generate_plan(
         household=config.household,
         week_dates=week_dates,
         learnings=store.load_learnings(),
-        lunches=config.household.lunches_per_week,
+        lunches=(
+            config.household.shortlist_lunches if shortlist
+            else config.household.lunches_per_week
+        ),
         variety_rules=VarietyRules(
-            max_same_protein_per_week=config.variety.max_same_protein_per_week,
+            # A shortlist holds more dishes than the week does, so the weekly
+            # protein cap has to scale with it or every menu trips the warning.
+            max_same_protein_per_week=_scaled_protein_cap(config, shortlist),
             repeat_window_days=config.variety.repeat_window_days,
         ),
         revision_context=revision_context,
+        shortlist=(
+            (config.household.dinners_per_week, config.household.lunches_per_week)
+            if shortlist else None
+        ),
     )
     if result.dropped_recipe_ids:
         print(f"[{user}] dropped unrepairable entries: {result.dropped_recipe_ids}")

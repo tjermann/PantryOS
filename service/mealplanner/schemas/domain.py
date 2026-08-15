@@ -136,5 +136,25 @@ class Household(StrictModel):
     # Make-ahead lunches planned alongside dinners: lighter dishes (salads,
     # grain bowls) batched once and eaten across several days.
     lunches_per_week: int = Field(default=0, ge=0, le=3)
+    # Friday shortlist: propose MORE than the household will cook and let them
+    # pick. 0 means "propose exactly what we'll eat" (no choosing step).
+    dinner_options: int = Field(default=0, ge=0, le=10)
+    lunch_options: int = Field(default=0, ge=0, le=5)
     budget_cents_weekly: int | None = None
     budget_enabled: bool = False
+
+    @property
+    def shortlist_dinners(self) -> int:
+        return max(self.dinner_options, self.dinners_per_week)
+
+    @property
+    def shortlist_lunches(self) -> int:
+        return max(self.lunch_options, self.lunches_per_week)
+
+    @property
+    def offers_choice(self) -> bool:
+        """True when the proposal is a menu to pick from, not a fixed week."""
+        return (
+            self.shortlist_dinners > self.dinners_per_week
+            or self.shortlist_lunches > self.lunches_per_week
+        )

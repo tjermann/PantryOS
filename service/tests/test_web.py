@@ -150,3 +150,67 @@ def test_tokens_are_per_user(client, users_base):
         users_base,
     )
     assert client.get(f"/u/other?t={token}").status_code == 403
+
+
+def _shortlist_plan(users_base, selected=None):
+    """A proposal with more options than the household will cook."""
+    config = load_user_config("test", users_base)
+    config.household.dinners_per_week = 2
+    config.household.dinner_options = 4
+    config.household.lunches_per_week = 1
+    config.household.lunch_options = 2
+    save_user_config("test", config, users_base)
+    store = StateStore(user_dir("test", users_base))
+    store.save_plan("2026-W33", {
+        "week": "2026-W33", "status": "proposed",
+        "week_dates": ["2026-08-17", "2026-08-18"],
+        "select_dinners": 2, "select_lunches": 1, "selected": selected,
+        "entries": [
+            {"recipe_id": f"dish-{i}", "date": f"2026-08-1{7 + i}",
+             "meal_type": "dinner", "servings": 4, "rationale": "", "person_handling": []}
+            for i in range(4)
+        ] + [
+            {"recipe_id": f"salad-{i}", "date": "2026-08-17", "meal_type": "lunch",
+             "servings": 4, "rationale": "", "person_handling": []}
+            for i in range(2)
+        ],
+    })
+    return store
+
+
+def test_picker_appears_only_for_shortlist_proposals(client, users_base):
+    url = feedback_url("test", "", users_base)
+    assert "Pick this week's meals" not in client.get(url).text  # plain plan
+    _shortlist_plan(users_base)
+    body = client.get(url).text
+    assert "Pick this week's meals" in body
+    assert body.count("name='dinner'") == 4 and body.count("name='lunch'") == 2
+    # the defaults arrive pre-ticked, so submitting unchanged is a real choice
+    picker = body.split("Pick this week's meals")[1].split("Rate recent dinners")[0]
+    assert picker.count("\" checked ") == 3
+
+
+def test_select_round_trip_saves_picks(client, users_base):
+    store = _shortlist_plan(users_base)
+    token = feedback_url("test", "", users_base).split("t=")[1]
+    r = client.post("/select/test",
+                    data={"t": token, "dinner": ["dish-1", "dish-3"], "lunch": ["salad-1"]},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    assert store.load_plan("2026-W33")["selected"] == ["dish-1", "dish-3", "salad-1"]
+
+
+def test_over_picking_is_refused_without_saving(client, users_base):
+    store = _shortlist_plan(users_base)
+    token = feedback_url("test", "", users_base).split("t=")[1]
+    r = client.post("/select/test",
+                    data={"t": token, "dinner": ["dish-0", "dish-1", "dish-2"]},
+                    follow_redirects=False)
+    assert "Too+many" in r.headers["location"] or "Too%20many" in r.headers["location"]
+    assert store.load_plan("2026-W33")["selected"] is None
+
+
+def test_select_requires_a_valid_token(client, users_base):
+    _shortlist_plan(users_base)
+    assert client.post("/select/test", data={"t": "forged", "dinner": ["dish-0"]},
+                       follow_redirects=False).status_code == 403

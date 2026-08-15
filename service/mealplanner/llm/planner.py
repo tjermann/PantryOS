@@ -156,6 +156,7 @@ def propose_plan(
     variety_rules: VarietyRules | None = None,
     max_repairs: int = 2,
     revision_context: str | None = None,
+    shortlist: tuple[int, int] | None = None,
 ) -> PlanRunResult:
     candidate_map = {r.id: r for r in candidates}
     context = build_candidate_context(
@@ -176,10 +177,27 @@ def propose_plan(
             "cache_control": {"type": "ephemeral"},
         }
     ]
+    task = "Plan this week."
+    if shortlist is not None:
+        pick_d, pick_l = shortlist
+        n_dinners = len(week_dates)
+        task = (
+            f"Propose a SHORTLIST, not a fixed week: {n_dinners} dinner options and "
+            f"{lunches} lunch option(s). The household will choose {pick_d} dinner(s) "
+            f"and {pick_l} lunch(es) from it; the rest go uncooked. Order them best "
+            f"first — if nobody chooses, the first {pick_d} dinners and first {pick_l} "
+            f"lunch(es) are what gets cooked, so those must stand on their own as a "
+            f"balanced week. Make the options genuinely different from each other "
+            f"(protein, cuisine, effort, cooking method) so the choice is worth "
+            f"making — near-duplicates waste a slot. The dates attached to options "
+            f"are placeholders; real nights are assigned after they pick. In each "
+            f"rationale, say what makes that option distinct, so someone skimming can "
+            f"choose quickly."
+        )
     messages: list[dict[str, Any]] = [
         {
             "role": "user",
-            "content": f"Plan this week. Context:\n{context}",
+            "content": f"{task} Context:\n{context}",
         }
     ]
 

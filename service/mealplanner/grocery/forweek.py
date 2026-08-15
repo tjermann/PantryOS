@@ -25,9 +25,14 @@ def grocery_for_plan(
         config.source_policy, config.recipe_sources,
     )
     by_id = {e.recipe.id: e.recipe for e in library}
+    # Only what's actually being cooked: on a shortlist that's the picks (or the
+    # defaults until they pick), never every option.
+    from ..planning.selection import resolve_selection
+
     recipes = [
         (by_id[e["recipe_id"]], e.get("servings", 4))
-        for e in plan.get("entries", []) if e.get("recipe_id") in by_id
+        for e in resolve_selection(plan, config.household)
+        if e.get("recipe_id") in by_id
     ]
     return build_grocery_list(
         recipes=recipes,

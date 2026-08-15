@@ -1,10 +1,15 @@
 <div style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto; color: #2b2b2b;">
   <h1 style="font-size: 22px; border-bottom: 2px solid #c96f4a; padding-bottom: 8px;">
-    {% if proposal_note %}Proposed dinners — {{ week_label }}{% else %}This week's dinners — {{ week_label }}{% endif %}
+    {% if shortlist %}Pick this week's meals — {{ week_label }}{% elif proposal_note %}Proposed dinners — {{ week_label }}{% else %}This week's dinners — {{ week_label }}{% endif %}
   </h1>
   {% if proposal_note %}
   <div style="background: #fff8e6; border: 2px solid #e0a800; border-radius: 6px; padding: 10px 14px; margin: 14px 0; font-size: 14px;">
     {{ proposal_note }}
+    {% if shortlist and shortlist.url %}
+    <div style="margin-top: 12px;">
+      <a href="{{ shortlist.url }}" style="background:#c96f4a; color:#fff; padding:10px 16px; border-radius:4px; text-decoration:none; font-weight:bold;">Choose {{ shortlist.pick_dinners }} dinners &amp; {{ shortlist.pick_lunches }} lunch →</a>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -17,13 +22,16 @@
   </div>
   {% endif %}
 
+  {% if shortlist %}
+  <h2 style="font-size: 18px; margin-top: 22px;">Dinner options — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }}</h2>
+  {% endif %}
   <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
     <tr style="text-align: left; border-bottom: 1px solid #ccc;">
-      <th style="padding: 6px 8px;">Day</th><th style="padding: 6px 8px;">Dinner</th><th style="padding: 6px 8px;">Notes</th>
+      <th style="padding: 6px 8px;">{% if shortlist %}Option{% else %}Day{% endif %}</th><th style="padding: 6px 8px;">Dinner</th><th style="padding: 6px 8px;">Notes</th>
     </tr>
     {% for e in entries %}
     <tr style="border-bottom: 1px solid #eee; vertical-align: top;">
-      <td style="padding: 6px 8px; white-space: nowrap;">{{ e.day }}</td>
+      <td style="padding: 6px 8px; white-space: nowrap;">{{ e.day }}{% if e.is_default %}<br><span style="color:#c96f4a; font-size:11px;">default</span>{% endif %}</td>
       <td style="padding: 6px 8px;"><strong>{% if e.url %}<a href="{{ e.url }}" style="color:#2b2b2b;">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</strong>
         {% if e.url %}<br><a href="{{ e.url }}" style="color:#c96f4a; font-size:12px;">recipe →</a>{% endif %}
         {% if e.source_label %}<br><span style="color:#999; font-size:12px;">from {% if e.source and e.source.startswith('http') %}<a href="{{ e.source }}" style="color:#999;">{{ e.source_label }}</a>{% else %}{{ e.source_label }}{% endif %}</span>{% endif %}
@@ -37,11 +45,12 @@
   </table>
 
   {% if lunches %}
-  <h2 style="font-size: 18px; margin-top: 22px;">Make-ahead lunch</h2>
+  <h2 style="font-size: 18px; margin-top: 22px;">{% if shortlist %}Lunch options — pick {{ shortlist.pick_lunches }} of {{ shortlist.lunch_options }}{% else %}Make-ahead lunch{% endif %}</h2>
   {% for e in lunches %}
   <div style="border: 1px solid #ddd; border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-size: 14px;">
     <strong>{% if e.url %}<a href="{{ e.url }}" style="color:#2b2b2b;">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</strong>
     <span style="color:#777;">— {{ e.day }}{% if e.time_label %}, {{ e.time_label }}{% endif %}</span>
+    {% if e.is_default %}<span style="color:#c96f4a; font-size:11px;"> default</span>{% endif %}
     {% if e.source_label %}<br><span style="color:#999; font-size:12px;">from {% if e.source and e.source.startswith('http') %}<a href="{{ e.source }}" style="color:#999;">{{ e.source_label }}</a>{% else %}{{ e.source_label }}{% endif %}</span>{% endif %}
     <div style="margin-top: 4px;">{{ e.rationale }}</div>
     {% for h in e.handling %}<em>{{ h }}</em><br>{% endfor %}
@@ -56,6 +65,7 @@
   {% endif %}
 
   <h2 style="font-size: 18px; margin-top: 26px;">Grocery list</h2>
+  {% if shortlist %}<p style="font-size: 13px; color: #777;">This covers the default picks. Choose different meals and the list updates to match.</p>{% endif %}
   {% if budget_line %}<p style="font-size: 13px;">{{ budget_line }}</p>{% endif %}
   {% if assumed_on_hand %}<p style="font-size: 13px; color: #777;">Assumed already in your pantry (not bought): {{ assumed_on_hand }}. Ran out of something? Mark it on the family page.</p>{% endif %}
   {% if removed_by_household %}<p style="font-size: 13px; color: #777;">Removed during review (you have enough): {{ removed_by_household }}</p>{% endif %}

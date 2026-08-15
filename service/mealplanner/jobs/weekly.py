@@ -71,14 +71,26 @@ def run_weekly(
             from ..planning.validate import validate_plan
             from ..schemas.plan import PlanEntryProposal, PlanProposal
 
+            from ..planning.selection import resolve_selection
+
             _, plan = latest
+            # Drop "never again" clicks first, so a shortlist can backfill the
+            # gap instead of the week coming up a dinner short.
+            live = {
+                **plan,
+                "entries": [
+                    e for e in plan.get("entries", [])
+                    if states.get(e["recipe_id"]) is None
+                    or states[e["recipe_id"]].lifecycle != "cut"
+                ],
+            }
             entries = [
                 PlanEntryProposal.model_validate(e)
-                for e in plan.get("entries", [])
-                # honor last-minute "never again" clicks
-                if states.get(e["recipe_id"]) is None
-                or states[e["recipe_id"]].lifecycle != "cut"
+                for e in resolve_selection(live, config.household)
             ]
+            if plan.get("selected"):
+                print(f"[{user}] using the household's picks "
+                      f"({len(plan['selected'])} chosen)")
             proposal = PlanProposal(entries=entries)
             validation = validate_plan(
                 proposal, recipes_by_id, states, items, config.household

@@ -71,6 +71,7 @@ def build_weekly_email_context(
     proposal_note: str | None = None,
     sources: Mapping[str, str] | None = None,
     problem_items: list[str] | None = None,
+    shortlist: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sources = sources or {}
     recipe_links = recipe_links or {}
@@ -90,8 +91,12 @@ def build_weekly_email_context(
             total = sum(f.lead_min for f in flags)
             lead = f"{total / 60:g} hr" if total >= 60 else f"{total} min"
             steps = "" if len(flags) == 1 else f" across {len(flags)} steps"
+            # On a shortlist the day is a placeholder — naming one would promise
+            # a night nobody has chosen yet.
+            when = "" if shortlist else f"{day}: "
+            tail = "plan around it" if shortlist else "start early"
             long_lead_notes.append(
-                f"{day}: {recipe.title} needs {lead} of unattended lead time{steps} — start early"
+                f"{when}{recipe.title} needs {lead} of unattended lead time{steps} — {tail}"
             )
         time_label = None
         if recipe.published_time_min:
@@ -120,6 +125,16 @@ def build_weekly_email_context(
                 "source_label": _source_label(sources.get(recipe.id)),
             }
         )
+
+    if shortlist:
+        # A shortlist has no days yet — number the options instead, and flag the
+        # ones that happen by default so "do nothing" has a visible outcome.
+        for i, e in enumerate(entries):
+            e["day"] = f"Option {i + 1}"
+            e["is_default"] = i < shortlist.get("pick_dinners", 0)
+        for i, e in enumerate(lunches):
+            e["day"] = f"Option {i + 1}"
+            e["is_default"] = i < shortlist.get("pick_lunches", 0)
 
     perishable_notes = None
     if plan.proposal.perishable_pairings:
@@ -168,6 +183,7 @@ def build_weekly_email_context(
     return {
         "week_label": week_start.strftime("week of %B %-d"),
         "proposal_note": proposal_note,
+        "shortlist": shortlist,
         "assumed_on_hand": ", ".join(grocery.assumed_on_hand) or None,
         "removed_by_household": ", ".join(grocery.removed_by_household) or None,
         "entries": entries,

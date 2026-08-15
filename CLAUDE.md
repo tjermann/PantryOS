@@ -34,7 +34,10 @@ household details — ask.**
    second is usually nicer. Ask about: who eats (and whether kids eat the planned
    dinners), per-person allergies with severity, dinners and make-ahead lunches per
    week, planning day, kitchen equipment they actually own, budget, stores, staples
-   they always have, recipient emails. Validate with
+   they always have, recipient emails. If they'd rather choose from a menu than be
+   handed a fixed week, set `dinner_options` / `lunch_options` above
+   `dinners_per_week` / `lunches_per_week` — Friday then proposes a shortlist and
+   the family page grows a picker. Validate with
    `.venv/bin/python -m mealplanner validate-config --user <name>`.
 
 4. **AI backend** — ask which they want:

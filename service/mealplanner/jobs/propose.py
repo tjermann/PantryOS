@@ -20,14 +20,28 @@ from .common import WEEKDAYS, generate_plan, iso_week_of, next_week_dates, plan_
 
 
 def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base,
-                    iteration: int, dry_run: bool, sources=None) -> None:
+                    iteration: int, dry_run: bool, sources=None,
+                    shortlist: dict | None = None) -> None:
     from ..allergen.ontology import load_ontology
     from ..grocery.pipeline import build_grocery_list
+    from ..planning.selection import resolve_selection
 
     # Show the would-be grocery list so budget/scale feedback can happen early.
+    # On a shortlist that means the default picks — buying for every option
+    # would wildly overstate the week.
+    entries = result.proposal.entries
+    if shortlist:
+        chosen = {
+            e["recipe_id"] for e in resolve_selection(
+                {"entries": [e.model_dump() for e in entries],
+                 "week_dates": [d.isoformat() for d in week_dates]},
+                config.household,
+            )
+        }
+        entries = [e for e in entries if e.recipe_id in chosen]
     recipes = [
         (recipes_by_id[e.recipe_id], e.servings)
-        for e in result.proposal.entries if e.recipe_id in recipes_by_id
+        for e in entries if e.recipe_id in recipes_by_id
     ]
     grocery = build_grocery_list(
         recipes=recipes, pantry=store.load_pantry(),
@@ -48,6 +62,8 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
 
         base_url = config.web_base_url.rstrip("/")
         feedback_url = signed_feedback_url(user, base_url, base)
+        if shortlist is not None:
+            shortlist = {**shortlist, "url": feedback_url}
         recipe_links = {e.recipe_id: recipe_url(user, base_url, e.recipe_id, base)
                         for e in result.proposal.entries}
         rating_links = {
@@ -56,6 +72,24 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
             for e in result.proposal.entries
         }
     version = f" (v{iteration})" if iteration > 1 else ""
+    if shortlist:
+        note = (
+            f"PICK YOUR MEALS{version} — nothing has been ordered. Choose "
+            f"{shortlist['pick_dinners']} of the {shortlist['dinner_options']} dinners "
+            f"and {shortlist['pick_lunches']} of the {shortlist['lunch_options']} "
+            f"lunches on the family page today. No pick by tomorrow morning is fine — "
+            f"the first {shortlist['pick_dinners']} dinners and first "
+            f"{shortlist['pick_lunches']} lunch below are the default, and the grocery "
+            f"list shown covers exactly those."
+        )
+        subject = f"Pick this week's meals{version} — cart loads tomorrow"
+    else:
+        note = (
+            f"PROPOSAL{version} — nothing has been ordered. Reply to this email, tap a "
+            f"star, or use the family page with any changes today; an updated proposal "
+            f"follows. The final plan and cart run tomorrow morning."
+        )
+        subject = f"Proposed dinners{version} — speak now, cart loads tomorrow"
     context = build_weekly_email_context(
         plan=result, grocery=grocery, recipes=recipes_by_id,
         items=load_ontology(), household=config.household,
@@ -63,11 +97,8 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
         feedback_url=feedback_url, recipe_links=recipe_links,
         rating_links=rating_links,
         sources=sources or {},
-        proposal_note=(
-            f"PROPOSAL{version} — nothing has been ordered. Reply to this email, tap a "
-            f"star, or use the family page with any changes today; an updated proposal "
-            f"follows. The final plan and cart run tomorrow morning."
-        ),
+        proposal_note=note,
+        shortlist=shortlist,
     )
     text, html = render_weekly_email(context)
     if dry_run:
@@ -75,9 +106,20 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
         return
     send_email(
         to=config.email.to, cc=config.email.cc,
-        subject=f"Proposed dinners{version} — speak now, cart loads tomorrow",
-        text=text, html=html,
+        subject=subject, text=text, html=html,
     )
+
+
+def _shortlist_meta(household, result) -> dict:
+    """What the email and page need to explain the choice — counted from what
+    the planner actually returned, not what we asked for."""
+    entries = result.proposal.entries
+    return {
+        "pick_dinners": household.dinners_per_week,
+        "pick_lunches": household.lunches_per_week,
+        "dinner_options": sum(1 for e in entries if e.meal_type != "lunch"),
+        "lunch_options": sum(1 for e in entries if e.meal_type == "lunch"),
+    }
 
 
 def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
@@ -90,18 +132,31 @@ def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
         print(f"[{user}] not proposal day ({config.proposal_day}); skipping")
         return 0
     store = StateStore(user_dir(user, base))
-    week_dates = next_week_dates(today, config.household.dinners_per_week)
-    result, recipes_by_id, sources = generate_plan(user, config, store, week_dates, base)
+    household = config.household
+    # The shortlist is generated over more slots than the week has nights; the
+    # real nights are stored separately and assigned once they pick.
+    week_dates = next_week_dates(today, household.dinners_per_week)
+    option_dates = next_week_dates(today, household.shortlist_dinners)
+    result, recipes_by_id, sources = generate_plan(
+        user, config, store, option_dates, base, shortlist=household.offers_choice
+    )
     iso_week = iso_week_of(week_dates[0])
+    shortlist = _shortlist_meta(household, result) if household.offers_choice else None
     if not dry_run:
         store.save_plan(iso_week, plan_payload(
             result, iso_week, status="proposed", iteration=1,
             fingerprint=store.feedback_fingerprint(),
             week_dates=[d.isoformat() for d in week_dates],
+            select_dinners=household.dinners_per_week,
+            select_lunches=household.lunches_per_week,
+            selected=None,
         ))
     _proposal_email(user, config, store, result, recipes_by_id, week_dates, base, 1,
-                    dry_run, sources)
-    print(f"[{user}] proposal sent ({iso_week})")
+                    dry_run, sources, shortlist)
+    print(f"[{user}] proposal sent ({iso_week})"
+          + (f" — {shortlist['dinner_options']} dinner / "
+             f"{shortlist['lunch_options']} lunch options to pick from"
+             if shortlist else ""))
 
     # Same morning: ask how last week's meals actually went.
     from .review import run_review
@@ -133,19 +188,31 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
 
     iteration = int(plan.get("iteration", 1)) + 1
     print(f"[{user}] new feedback — revising proposal (v{iteration})")
+    household = config.household
     week_dates = [date.fromisoformat(d) for d in plan.get("week_dates", [])] or \
-        next_week_dates(today, config.household.dinners_per_week)
+        next_week_dates(today, household.dinners_per_week)
+    option_dates = next_week_dates(today, household.shortlist_dinners)
     previous = json.dumps(plan.get("entries", []))
     result, recipes_by_id, sources = generate_plan(
-        user, config, store, week_dates, base, revision_context=previous
+        user, config, store, option_dates, base, revision_context=previous,
+        shortlist=household.offers_choice,
     )
+    shortlist = _shortlist_meta(household, result) if household.offers_choice else None
+    if plan.get("selected"):
+        # New feedback means new options; picks made against the old list can't
+        # carry over. Say so rather than silently cooking something they
+        # didn't choose.
+        print(f"[{user}] earlier picks cleared — the options changed")
     if not dry_run:
         store.save_plan(iso_week, plan_payload(
             result, iso_week, status="proposed", iteration=iteration,
             fingerprint=store.feedback_fingerprint(),
             week_dates=[d.isoformat() for d in week_dates],
+            select_dinners=household.dinners_per_week,
+            select_lunches=household.lunches_per_week,
+            selected=None,
         ))
     _proposal_email(user, config, store, result, recipes_by_id, week_dates, base,
-                    iteration, dry_run, sources)
+                    iteration, dry_run, sources, shortlist)
     print(f"[{user}] revised proposal v{iteration} sent ({iso_week})")
     return 0
