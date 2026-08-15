@@ -19,13 +19,7 @@ from ..planning.variety import VarietyRules
 from ..recipes.merged import load_full_library
 from ..state.store import StateStore
 
-WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-
-
-def next_week_dates(today: date, dinners: int) -> list[date]:
-    """Plan starting tomorrow, one dinner per day."""
-    start = today + timedelta(days=1)
-    return [start + timedelta(days=i) for i in range(dinners)]
+from .common import WEEKDAYS, next_week_dates  # noqa: E402  (shared with propose)
 
 
 def is_planning_day(config: UserConfig, today: date) -> bool:
@@ -59,7 +53,7 @@ def run_weekly(
     sources = {e.recipe.id: e.source for e in library if e.source}
     states = store.load_recipe_states()
 
-    week_dates = next_week_dates(today, config.household.dinners_per_week)
+    week_dates = next_week_dates(today, config.household.dinners_per_week, config.planning_day)
     result = None
 
     # Approval flow: if yesterday's proposal (possibly revised through the day)

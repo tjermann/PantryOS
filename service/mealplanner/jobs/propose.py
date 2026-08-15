@@ -1,9 +1,12 @@
-"""The approval flow: propose on proposal day, iterate on feedback, and let
-run_weekly execute the approved plan the next morning.
+"""The approval flow: propose on proposal day, iterate while the proposal is
+open, and let run_weekly execute it on planning day.
 
-  Friday 6:15  run-propose  -> 'Proposed dinners' email (no cart, nothing bought)
-  Friday 9-18  run-iterate  -> new feedback? revise + email updated proposal
-  Saturday     run-weekly   -> executes the latest proposal: list, cart, final email
+  proposal_day 6:15   run-propose  -> proposal email (no cart, nothing bought)
+  until planning day  run-iterate  -> new feedback? revise + email a new version
+  planning_day 6:30   run-weekly   -> executes the plan: list, cart, final email
+
+The gap between the two days is the household's review window — one day or
+several, whatever their config says.
 """
 
 from __future__ import annotations
@@ -72,24 +75,26 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
             for e in result.proposal.entries
         }
     version = f" (v{iteration})" if iteration > 1 else ""
+    shop_day = config.planning_day.capitalize()
     if shortlist:
         note = (
             f"PICK YOUR MEALS{version} — nothing has been ordered. Choose "
             f"{shortlist['pick_dinners']} of the {shortlist['dinner_options']} dinners "
             f"and {shortlist['pick_lunches']} of the {shortlist['lunch_options']} "
-            f"lunches on the family page today. No pick by tomorrow morning is fine — "
-            f"the first {shortlist['pick_dinners']} dinners and first "
-            f"{shortlist['pick_lunches']} lunch below are the default, and the grocery "
-            f"list shown covers exactly those."
+            f"lunches on the family page. You have until {shop_day} morning, when the "
+            f"cart is filled from your picks — and not picking is fine: the first "
+            f"{shortlist['pick_dinners']} dinners and first {shortlist['pick_lunches']} "
+            f"lunch below are the default, and the grocery list shown covers exactly "
+            f"those."
         )
-        subject = f"Pick this week's meals{version} — cart loads tomorrow"
+        subject = f"Pick this week's meals{version} — cart loads {shop_day}"
     else:
         note = (
             f"PROPOSAL{version} — nothing has been ordered. Reply to this email, tap a "
-            f"star, or use the family page with any changes today; an updated proposal "
-            f"follows. The final plan and cart run tomorrow morning."
+            f"star, or use the family page with any changes; an updated proposal "
+            f"follows. The final plan and cart run {shop_day} morning."
         )
-        subject = f"Proposed dinners{version} — speak now, cart loads tomorrow"
+        subject = f"Proposed dinners{version} — speak now, cart loads {shop_day}"
     context = build_weekly_email_context(
         plan=result, grocery=grocery, recipes=recipes_by_id,
         items=load_ontology(), household=config.household,
@@ -135,8 +140,8 @@ def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
     household = config.household
     # The shortlist is generated over more slots than the week has nights; the
     # real nights are stored separately and assigned once they pick.
-    week_dates = next_week_dates(today, household.dinners_per_week)
-    option_dates = next_week_dates(today, household.shortlist_dinners)
+    week_dates = next_week_dates(today, household.dinners_per_week, config.planning_day)
+    option_dates = next_week_dates(today, household.shortlist_dinners, config.planning_day)
     result, recipes_by_id, sources = generate_plan(
         user, config, store, option_dates, base, shortlist=household.offers_choice
     )
@@ -172,13 +177,15 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
                 today: date | None = None) -> int:
     today = today or date.today()
     config = load_user_config(user, base)
-    if config.proposal_day is None or WEEKDAYS[today.weekday()] != config.proposal_day:
+    if config.proposal_day is None:
         return 0
     store = StateStore(user_dir(user, base))
     latest = store.latest_plan()
     if latest is None:
         return 0
     iso_week, plan = latest
+    # An open proposal is the signal, not the calendar: the review window can
+    # span several days, and it closes the moment run_weekly marks it final.
     if plan.get("status") != "proposed":
         return 0
     current = store.feedback_fingerprint()
@@ -190,8 +197,8 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
     print(f"[{user}] new feedback — revising proposal (v{iteration})")
     household = config.household
     week_dates = [date.fromisoformat(d) for d in plan.get("week_dates", [])] or \
-        next_week_dates(today, household.dinners_per_week)
-    option_dates = next_week_dates(today, household.shortlist_dinners)
+        next_week_dates(today, household.dinners_per_week, config.planning_day)
+    option_dates = next_week_dates(today, household.shortlist_dinners, config.planning_day)
     previous = json.dumps(plan.get("entries", []))
     result, recipes_by_id, sources = generate_plan(
         user, config, store, option_dates, base, revision_context=previous,

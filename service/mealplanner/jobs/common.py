@@ -18,9 +18,20 @@ from ..state.store import StateStore
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 
-def next_week_dates(today: date, dinners: int) -> list[date]:
-    """Plan starting tomorrow, one dinner per day."""
-    start = today + timedelta(days=1)
+def next_weekday(today: date, name: str) -> date:
+    """The next occurrence of a weekday, counting today as that day."""
+    return today + timedelta(days=(WEEKDAYS.index(name) - today.weekday()) % 7)
+
+
+def next_week_dates(today: date, dinners: int,
+                    planning_day: str = "saturday") -> list[date]:
+    """The nights this plan covers, one dinner per day.
+
+    Cooking starts the day after the cart is loaded, so the week hangs off the
+    planning day rather than off whenever we happen to be planning — that way a
+    proposal written days earlier names the same nights the shopping run will.
+    """
+    start = next_weekday(today, planning_day) + timedelta(days=1)
     return [start + timedelta(days=i) for i in range(dinners)]
 
 

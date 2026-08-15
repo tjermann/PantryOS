@@ -77,3 +77,33 @@ class TestHouseholdShortlistFlags:
         h.dinner_options = 7
         assert h.offers_choice and h.shortlist_dinners == 7
         assert h.shortlist_lunches == 1  # untouched
+
+
+class TestWeekDates:
+    """Cooking starts the day after the cart is loaded, whenever we plan."""
+
+    def test_proposal_and_shopping_run_name_the_same_nights(self):
+        from datetime import date
+
+        from mealplanner.jobs.common import next_week_dates
+
+        friday, sunday = date(2026, 8, 14), date(2026, 8, 16)
+        from_proposal = next_week_dates(friday, 4, "sunday")
+        from_shopping = next_week_dates(sunday, 4, "sunday")
+        assert from_proposal == from_shopping
+        assert from_proposal[0] == date(2026, 8, 17)  # Monday
+
+    def test_two_day_review_window(self):
+        from datetime import date
+
+        from mealplanner.jobs.common import next_week_dates
+
+        # Proposed Friday, carted Sunday: Friday and Saturday are for choosing.
+        assert next_week_dates(date(2026, 8, 14), 1, "sunday")[0] == date(2026, 8, 17)
+
+    def test_one_day_window_still_works(self):
+        from datetime import date
+
+        from mealplanner.jobs.common import next_week_dates
+
+        assert next_week_dates(date(2026, 8, 14), 1, "saturday")[0] == date(2026, 8, 16)
