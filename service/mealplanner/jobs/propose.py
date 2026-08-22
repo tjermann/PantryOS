@@ -192,6 +192,16 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
     if current == plan.get("fingerprint"):
         print(f"[{user}] no new feedback; proposal stands")
         return 0
+    if plan.get("selected"):
+        # Someone has already said what they want to eat. A machine-generated
+        # revision must not overrule that: re-planning here would silently
+        # replace chosen dinners, and any carried-over meal with food already
+        # in the fridge would vanish with it. The feedback is saved and shapes
+        # next week; this week is changed on the family page, by a person.
+        print(f"[{user}] {iso_week} picks are already in — feedback recorded for "
+              f"next week rather than rewriting a settled plan")
+        store.save_plan(iso_week, {**plan, "fingerprint": current})
+        return 0
 
     iteration = int(plan.get("iteration", 1)) + 1
     print(f"[{user}] new feedback — revising proposal (v{iteration})")
@@ -205,20 +215,22 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
         shortlist=household.offers_choice,
     )
     shortlist = _shortlist_meta(household, result) if household.offers_choice else None
-    if plan.get("selected"):
-        # New feedback means new options; picks made against the old list can't
-        # carry over. Say so rather than silently cooking something they
-        # didn't choose.
-        print(f"[{user}] earlier picks cleared — the options changed")
+    # Meals whose groceries are already bought survive every revision — dropping
+    # one would waste food that is sitting in the fridge.
+    carried = [e for e in plan.get("entries", []) if e.get("ingredients_on_hand")]
+    if carried:
+        print(f"[{user}] keeping {len(carried)} already-shopped-for meal(s)")
     if not dry_run:
-        store.save_plan(iso_week, plan_payload(
+        payload = plan_payload(
             result, iso_week, status="proposed", iteration=iteration,
             fingerprint=store.feedback_fingerprint(),
             week_dates=[d.isoformat() for d in week_dates],
-            select_dinners=household.dinners_per_week,
-            select_lunches=household.lunches_per_week,
+            select_dinners=plan.get("select_dinners") or household.dinners_per_week,
+            select_lunches=plan.get("select_lunches") or household.lunches_per_week,
             selected=None,
-        ))
+        )
+        payload["entries"] = payload["entries"] + carried
+        store.save_plan(iso_week, payload)
     _proposal_email(user, config, store, result, recipes_by_id, week_dates, base,
                     iteration, dry_run, sources, shortlist)
     print(f"[{user}] revised proposal v{iteration} sent ({iso_week})")

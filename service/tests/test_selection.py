@@ -131,3 +131,52 @@ class TestCarriedOverMeals:
                    if e["meal_type"] == "dinner"]
         assert [e["recipe_id"] for e in dinners] == ["d0", "d1", "d5"]
         assert [e["date"] for e in dinners] == WEEK[:3]  # only three nights used
+
+
+class TestIterateRespectsPicks:
+    """A machine revision must never overrule a person's choice."""
+
+    def _setup(self, tmp_path, selected, entries_extra=()):
+        from mealplanner.config import EmailConfig, UserConfig, save_user_config, user_dir
+        from mealplanner.schemas.domain import Household
+        from mealplanner.state.store import StateStore
+
+        config = UserConfig(
+            name="T", email=EmailConfig(to=["a@b.c"]),
+            recipe_library=str(tmp_path / "lib"), proposal_day="friday",
+            household=Household(id="t", name="T", dinners_per_week=2),
+        )
+        save_user_config("t", config, tmp_path)
+        store = StateStore(user_dir("t", tmp_path))
+        store.save_plan("2026-W35", {
+            "week": "2026-W35", "status": "proposed", "iteration": 1,
+            "fingerprint": "stale", "week_dates": ["2026-08-24", "2026-08-25"],
+            "select_dinners": 2, "selected": selected,
+            "entries": [
+                {"recipe_id": "a", "date": "2026-08-24", "meal_type": "dinner",
+                 "servings": 4, "rationale": "", "person_handling": []},
+                *entries_extra,
+            ],
+        })
+        return store
+
+    def test_new_feedback_does_not_rewrite_a_plan_with_picks(self, tmp_path):
+        from mealplanner.jobs.propose import run_iterate
+
+        store = self._setup(tmp_path, selected=["a"])
+        # No LLM is stubbed: if this tried to re-plan it would blow up.
+        assert run_iterate("t", base=tmp_path, today=__import__("datetime").date(2026, 8, 22)) == 0
+        plan = store.load_plan("2026-W35")
+        assert plan["selected"] == ["a"]
+        assert plan["iteration"] == 1
+        assert plan["fingerprint"] != "stale"  # settled, so it stops re-firing
+
+    def test_carried_over_meals_are_kept_for_the_revision(self, tmp_path):
+        """Food already in the fridge survives a re-plan even with no picks."""
+        carried = {"recipe_id": "leftover", "date": "2026-08-25",
+                   "meal_type": "dinner", "servings": 4, "rationale": "",
+                   "person_handling": [], "ingredients_on_hand": True}
+        store = self._setup(tmp_path, selected=None, entries_extra=[carried])
+        plan = store.load_plan("2026-W35")
+        kept = [e for e in plan["entries"] if e.get("ingredients_on_hand")]
+        assert kept == [carried]
