@@ -199,3 +199,54 @@ class TestStateStore:
         assert "deveining" in store.load_learnings()
         store.add_restock("distilled white vinegar")
         assert store.load_restock()[0].raw == "distilled white vinegar"
+
+
+class TestJobLock:
+    """Two jobs in the same minute must not cost a week of work."""
+
+    def test_waits_for_the_lock_instead_of_skipping(self, tmp_path, monkeypatch):
+        import fcntl
+        import threading
+
+        from mealplanner import cli
+
+        monkeypatch.setattr(cli, "user_dir", lambda user: tmp_path)
+        lock_path = tmp_path / ".lock"
+        held = threading.Event()
+        release = threading.Event()
+
+        def hold():
+            with open(lock_path, "w") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                held.set()
+                release.wait(5)
+
+        holder = threading.Thread(target=hold)
+        holder.start()
+        held.wait(5)
+        ran = []
+        result = []
+
+        def contend():
+            result.append(cli._locked_run("u", lambda _: ran.append(1) or 0, wait_s=10))
+
+        waiter = threading.Thread(target=contend)
+        waiter.start()
+        release.set()
+        holder.join(5)
+        waiter.join(10)
+        assert ran == [1], "the second job must still run once the lock frees"
+        assert result == [0]
+
+    def test_gives_up_and_reports_failure_rather_than_hanging(self, tmp_path, monkeypatch):
+        import fcntl
+
+        from mealplanner import cli
+
+        monkeypatch.setattr(cli, "user_dir", lambda user: tmp_path)
+        with open(tmp_path / ".lock", "w") as blocker:
+            fcntl.flock(blocker, fcntl.LOCK_EX)
+            ran = []
+            # Non-zero: cron surfaces it instead of the week silently vanishing.
+            assert cli._locked_run("u", lambda _: ran.append(1), wait_s=0) == 1
+            assert ran == []

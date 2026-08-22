@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import fcntl
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -28,15 +29,32 @@ def _users(user: str | None, all_users: bool) -> list[str]:
     return [user]
 
 
-def _locked_run(user: str, fn) -> int:
+# Jobs scheduled in the same minute contend for the user lock. Waiting for a
+# turn is nearly always right: the loser is a job with real work to do, and
+# skipping it silently costs a whole week (a missed Friday proposal, or worse,
+# a Sunday cart that never loads).
+LOCK_WAIT_S = 30 * 60
+
+
+def _locked_run(user: str, fn, wait_s: int = LOCK_WAIT_S) -> int:
     lock_path = user_dir(user) / ".lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with open(lock_path, "w") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print(f"[{user}] another run is in progress; skipping")
-            return 0
+        deadline = time.monotonic() + wait_s
+        announced = False
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    print(f"[{user}] another run held the lock for "
+                          f"{wait_s // 60}m; giving up", file=sys.stderr)
+                    return 1
+                if not announced:
+                    print(f"[{user}] another run is in progress; waiting for it")
+                    announced = True
+                time.sleep(5)
         return fn(user)
 
 
@@ -380,26 +398,42 @@ def install_cron_cmd(
         "pantryos-discover": f"0 20 * * 4 {prefix} discover-recipes --all-users --total 25 >> var/log/discover.log 2>&1",
         "pantryos-propose": f"15 6 * * * {prefix} run-propose --all-users >> var/log/propose.log 2>&1",
         "pantryos-iterate": f"0 9,12,15,18 * * * {prefix} run-iterate --all-users >> var/log/iterate.log 2>&1",
-        "pantryos-weekly": f"15 6 * * * {prefix} run-weekly --all-users >> var/log/weekly.log 2>&1",
+        # 30 minutes after propose: the two must never land in the same minute,
+        # or they race for the user lock and one week's job silently loses.
+        "pantryos-weekly": f"45 6 * * * {prefix} run-weekly --all-users >> var/log/weekly.log 2>&1",
         "pantryos-restock": f"0 17 * * 3 {prefix} run-restock --all-users >> var/log/restock.log 2>&1",
         "pantryos-tonight": f"0 15 * * * {prefix} run-tonight --all-users >> var/log/tonight.log 2>&1",
         "pantryos-inbox": f"0 8,18 * * * {prefix} run-inbox >> var/log/inbox.log 2>&1",
+        # restart-serve, not serve: it health-checks and replaces a dead or
+        # stale process instead of failing because the port looks taken.
         "pantryos-serve": (
-            f"@reboot cd {SERVICE_ROOT} && nohup {python} -m mealplanner serve "
+            f"@reboot cd {SERVICE_ROOT} && {python} -m mealplanner restart-serve "
             f"--port {serve_port} >> var/log/serve.log 2>&1"
         ),
     }
     (SERVICE_ROOT / "var" / "log").mkdir(parents=True, exist_ok=True)
     current = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
     lines = current.stdout.splitlines() if current.returncode == 0 else []
-    added = []
+    added, updated = [], []
     for tag, entry in wanted.items():
-        if not any(tag in l for l in lines):
-            lines.append(f"{entry}  # {tag}")
+        want = f"{entry}  # {tag}"
+        existing = [i for i, l in enumerate(lines) if l.endswith(f"# {tag}")]
+        if not existing:
+            lines.append(want)
             added.append(tag)
-    if added:
+        elif lines[existing[0]] != want:
+            # An entry installed by an older version can be scheduled wrong
+            # (jobs sharing a minute used to race); correct it in place.
+            lines[existing[0]] = want
+            updated.append(tag)
+        for extra in reversed(existing[1:]):  # de-duplicate re-runs
+            lines.pop(extra)
+    if added or updated:
         subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n", text=True, check=True)
-        typer.echo(f"Scheduled: {', '.join(added)}")
+        if added:
+            typer.echo(f"Scheduled: {', '.join(added)}")
+        if updated:
+            typer.echo(f"Corrected: {', '.join(updated)}")
     else:
         typer.echo("Already scheduled — nothing to do.")
     typer.echo("PantryOS will now plan each household's week on its planning day,")
