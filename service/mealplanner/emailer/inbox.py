@@ -91,10 +91,7 @@ def poll_inbox(base: Path | None = None, dry_run: bool = False) -> int:
                     print(f"[{user}] would ingest from {name}: {text[:80]!r}")
                 continue
             if text:
-                StateStore(user_dir(user, base)).append_learning(
-                    f"Email feedback from {name} ({date.today().isoformat()}): {text}"
-                )
-                print(f"[{user}] feedback from {name} recorded ({len(text)} chars)")
+                _ingest(user, name, text, base)
                 ingested += 1
             # Processed either way — clear it from the inbox (Gmail keeps an
             # archived copy in All Mail; nothing is destroyed).
@@ -102,3 +99,46 @@ def poll_inbox(base: Path | None = None, dry_run: bool = False) -> int:
         if not dry_run:
             imap.expunge()
     return ingested
+
+
+def _ingest(user: str, name: str, text: str, base: Path | None) -> None:
+    """A reply can both choose this week's meals and leave a lasting preference.
+    It is read for picks first; only the preference part becomes a learning, so
+    one week's choices don't steer every future week."""
+    store = StateStore(user_dir(user, base))
+    stamp = date.today().isoformat()
+    applied = config = None
+    try:
+        from ..config import load_user_config
+        from ..jobs.reply import apply_reply
+
+        config = load_user_config(user, base)
+        applied = apply_reply(user, config, text, base)
+    except Exception as exc:
+        # Never lose the message because the clever path broke.
+        print(f"[{user}] could not read {name}'s reply as picks: {exc}")
+
+    if applied is not None and applied.changed:
+        print(f"[{user}] {name} picked {len(applied.dinners)} dinner(s), "
+              f"{len(applied.lunches)} lunch(es)"
+              + (f", carried over {len(applied.carried)}" if applied.carried else ""))
+        if applied.notes:
+            store.append_learning(f"Email feedback from {name} ({stamp}): {applied.notes}")
+    else:
+        if applied is not None and applied.unmatched:
+            print(f"[{user}] {name} asked for meals but nothing matched: "
+                  f"{applied.unmatched}")
+        store.append_learning(f"Email feedback from {name} ({stamp}): {text}")
+        print(f"[{user}] feedback from {name} recorded ({len(text)} chars)")
+
+    if applied is not None and config is not None:
+        try:
+            from ..jobs.reply import confirm_email, settle_fingerprint
+
+            if applied.changed:
+                # After the learning is written, so the settled plan matches the
+                # state the iterate job will compare against.
+                settle_fingerprint(user, base)
+            confirm_email(user, config, applied, base)
+        except Exception as exc:
+            print(f"[{user}] could not confirm picks to {name}: {exc}")

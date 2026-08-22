@@ -36,7 +36,7 @@ def build_message(
     cc: list[str],
     subject: str,
     text: str,
-    html: str,
+    html: str | None,
 ) -> EmailMessage:
     msg = EmailMessage()
     msg["From"] = f"{settings.from_name} <{settings.user}>"
@@ -45,7 +45,8 @@ def build_message(
         msg["Cc"] = ", ".join(cc)
     msg["Subject"] = subject
     msg.set_content(text)
-    msg.add_alternative(html, subtype="html")
+    if html:  # short notices are plain text; only add a part that exists
+        msg.add_alternative(html, subtype="html")
     return msg
 
 
@@ -53,7 +54,7 @@ def send_email(
     to: list[str],
     subject: str,
     text: str,
-    html: str,
+    html: str | None = None,
     cc: list[str] | None = None,
     settings: SmtpSettings | None = None,
 ) -> None:

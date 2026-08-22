@@ -107,7 +107,9 @@ pipeline). No live API calls in tests — LLM backends are faked.
   - `allergen/`, `planning/`, `grocery/` — deterministic core; no LLM involvement
   - `llm/` — three interchangeable backends (`api`, `claude-cli`, `local`), all
     duck-typed to `messages.parse()`; validation + repair loop makes weak models safe
-  - `jobs/` — propose / iterate / weekly / review / restock / tonight
+  - `jobs/` — propose / iterate / weekly / review / restock / tonight / reply
+    (replies to the proposal email can pick meals; the model only ever matches
+    words to dishes that exist, and every id is re-checked in code)
   - `carts/` — Playwright store drivers, YAML selector packs with fallback chains
   - `web/` — the family feedback page (escape all user content: `esc()`/`q()`)
   - `recipes/` — library reader, URL import, site discovery
