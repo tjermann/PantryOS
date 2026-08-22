@@ -12,7 +12,7 @@ START AHEAD:
 {% if shortlist %}
 DINNER OPTIONS — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }}
 {% endif %}{% for e in entries %}
-{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
+{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.on_hand %} [already shopped for]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
   {{ e.rationale }}
 {% if e.source and e.source.startswith('http') %}  Source: {{ e.source }}
 {% endif %}{% if e.url %}  Recipe: {{ e.url }}
@@ -20,7 +20,7 @@ DINNER OPTIONS — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_opti
 {% endfor %}{% endfor %}
 {% if lunches %}
 {% if shortlist %}LUNCH OPTIONS — pick {{ shortlist.pick_lunches }} of {{ shortlist.lunch_options }}{% else %}MAKE-AHEAD LUNCH{% endif %}
-{% for e in lunches %}{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
+{% for e in lunches %}{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.on_hand %} [already shopped for]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
   {{ e.rationale }}
 {% if e.url %}  Recipe: {{ e.url }}
 {% endif %}{% endfor %}{% endif %}

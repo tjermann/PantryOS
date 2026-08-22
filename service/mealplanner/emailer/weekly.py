@@ -123,6 +123,7 @@ def build_weekly_email_context(
                 "stars": rating_links.get(recipe.id, []),
                 "source": sources.get(recipe.id),
                 "source_label": _source_label(sources.get(recipe.id)),
+                "on_hand": e.ingredients_on_hand,
             }
         )
 

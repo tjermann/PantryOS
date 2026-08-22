@@ -44,6 +44,9 @@ class PlanEntryProposal(StrictModel):
     servings: int = Field(gt=0)
     rationale: str
     person_handling: list[PersonHandling] = Field(default_factory=list)
+    # A dish carried over from a week it never got cooked: it belongs on the
+    # menu, but its shopping already happened and must not happen twice.
+    ingredients_on_hand: bool = False
 
 
 class PerishablePairing(StrictModel):

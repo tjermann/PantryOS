@@ -326,18 +326,28 @@ def create_app(base: Path | None = None) -> FastAPI:
                 # Name the meals it's buying for — otherwise a list that just
                 # changed with your picks is indistinguishable from one that
                 # didn't.
-                from ..planning.selection import resolve_selection
+                from ..planning.selection import needs_shopping, resolve_selection
 
                 lib = _library_index(user, config, base)
-                covers = ", ".join(
-                    lib[e["recipe_id"]].recipe.title if e["recipe_id"] in lib
-                    else e["recipe_id"].replace("-", " ")
-                    for e in resolve_selection(plan, config.household)
-                )
+
+                def _title(entry: dict) -> str:
+                    slug = entry["recipe_id"]
+                    return (lib[slug].recipe.title if slug in lib
+                            else slug.replace("-", " "))
+
+                menu = resolve_selection(plan, config.household)
+                buying = [_title(e) for e in needs_shopping(menu)]
+                already = [_title(e) for e in menu if e.get("ingredients_on_hand")]
+                caption = (f"<p style='font-size:13px;'><strong>Buying for:</strong> "
+                           f"{esc(', '.join(buying))}</p>")
+                if already:
+                    caption += (
+                        f"<p style='font-size:13px;color:#2e7d32;'><strong>Already "
+                        f"shopped for:</strong> {esc(', '.join(already))} — on the "
+                        f"menu, not on the list.</p>"
+                    )
                 parts.append(
-                    f"<h2>This week's grocery list</h2><div class='card'>"
-                    f"<p style='font-size:13px;'><strong>Buying for:</strong> "
-                    f"{esc(covers)}</p>"
+                    f"<h2>This week's grocery list</h2><div class='card'>{caption}"
                     f"<p><small>Check anything you already have enough of, then hit "
                     f"Update — checked items won't be bought this week. (Permanent "
                     f"staples are handled separately below.)</small></p>"

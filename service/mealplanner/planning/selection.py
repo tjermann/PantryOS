@@ -28,6 +28,10 @@ def resolve_selection(plan: dict[str, Any], household: Household) -> list[dict[s
     dinners = [e for e in entries if _meal(e) == "dinner"]
     lunches = [e for e in entries if _meal(e) == "lunch"]
     picked = set(plan.get("selected") or [])
+    # A plan records how many meals this particular week is for — a household
+    # can cook fewer than usual without rewriting its standing config.
+    want_dinners = int(plan.get("select_dinners") or household.dinners_per_week)
+    want_lunches = int(plan.get("select_lunches") or household.lunches_per_week)
 
     def choose(pool: list[dict[str, Any]], count: int) -> list[dict[str, Any]]:
         chosen = [e for e in pool if e.get("recipe_id") in picked]
@@ -37,8 +41,8 @@ def resolve_selection(plan: dict[str, Any], household: Household) -> list[dict[s
         return (chosen + rest)[:count]
 
     return _redate(
-        choose(dinners, household.dinners_per_week),
-        choose(lunches, household.lunches_per_week),
+        choose(dinners, want_dinners),
+        choose(lunches, want_lunches),
         plan.get("week_dates") or [],
     )
 
@@ -70,3 +74,9 @@ def selection_counts(plan: dict[str, Any], household: Household) -> tuple[int, i
         sum(1 for e in entries if _meal(e) == "dinner"),
         sum(1 for e in entries if _meal(e) == "lunch"),
     )
+
+
+def needs_shopping(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The meals whose ingredients still have to be bought — carried-over
+    dishes were paid for in the week they were skipped."""
+    return [e for e in entries if not e.get("ingredients_on_hand")]

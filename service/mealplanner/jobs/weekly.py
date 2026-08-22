@@ -137,7 +137,8 @@ def run_weekly(
     plan_recipes = [
         (recipes_by_id[e.recipe_id], e.servings)
         for e in result.proposal.entries
-        if e.recipe_id in recipes_by_id
+        # Carried-over dishes are cooked this week but were bought last week.
+        if e.recipe_id in recipes_by_id and not e.ingredients_on_hand
     ]
     grocery = build_grocery_list(
         recipes=plan_recipes,

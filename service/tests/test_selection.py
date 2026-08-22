@@ -107,3 +107,27 @@ class TestWeekDates:
         from mealplanner.jobs.common import next_week_dates
 
         assert next_week_dates(date(2026, 8, 14), 1, "saturday")[0] == date(2026, 8, 16)
+
+
+class TestCarriedOverMeals:
+    """A dish moved from a week it never got cooked: on the menu, off the list."""
+
+    def test_on_hand_meals_are_excluded_from_shopping_only(self):
+        from mealplanner.planning.selection import needs_shopping, resolve_selection
+
+        p = plan(["d0", "d1", "l0"], dinners=3, lunches=1)
+        p["select_dinners"] = 3
+        p["entries"][2]["ingredients_on_hand"] = True  # d2, topped up into the week
+        menu = resolve_selection(p, household(dinners=4))
+        assert [e["recipe_id"] for e in menu if e["meal_type"] == "dinner"] == \
+            ["d0", "d1", "d2"]
+        assert [e["recipe_id"] for e in needs_shopping(menu)] == ["d0", "d1", "l0"]
+
+    def test_plan_level_count_overrides_the_household_default(self):
+        """Cooking three dinners this week shouldn't rewrite standing config."""
+        p = plan(["d0", "d1", "d5"])
+        p["select_dinners"] = 3
+        dinners = [e for e in resolve_selection(p, household(dinners=4))
+                   if e["meal_type"] == "dinner"]
+        assert [e["recipe_id"] for e in dinners] == ["d0", "d1", "d5"]
+        assert [e["date"] for e in dinners] == WEEK[:3]  # only three nights used
