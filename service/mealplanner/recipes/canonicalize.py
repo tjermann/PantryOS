@@ -28,9 +28,18 @@ _NOISE = re.compile(
 )
 
 
+def fold(text: str) -> str:
+    """jalapeño -> jalapeno, so an accent never hides a match."""
+    import unicodedata
+
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
+    )
+
+
 def clean_line(raw: str) -> str:
     """Strip quantities, parentheticals and prep words down to the noun."""
-    text = re.sub(r"\([^)]*\)", " ", raw)          # (about 2-3 large breasts)
+    text = re.sub(r"\([^)]*\)", " ", fold(raw))    # (about 2-3 large breasts)
     text = re.sub(r"[\d/¼½¾⅓⅔⅛.,-]+", " ", text)   # quantities and fractions
     text = _NOISE.sub(" ", text)
     return re.sub(r"\s+", " ", text).strip().lower()
@@ -41,7 +50,7 @@ def _phrases(items: Mapping[str, CanonicalItem]) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for item in items.values():
         for phrase in [item.name, *item.aliases]:
-            cleaned = phrase.strip().lower()
+            cleaned = fold(phrase.strip().lower())
             if cleaned:
                 out.append((cleaned, item.id))
     return sorted(out, key=lambda p: -len(p[0]))

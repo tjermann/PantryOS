@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from typing import Literal, Mapping
 
@@ -57,6 +59,27 @@ class GroceryListResult:
     removed_by_household: list[str] = field(default_factory=list)
 
 
+# Lines that appear among ingredients but are not things you buy: tap water, and
+# the "For the sauce:" headers many sites emit as ingredient rows.
+_NOT_PURCHASABLE = re.compile(
+    r"^(?:\s*(?:cold|warm|hot|ice|lukewarm|filtered|boiling)?\s*water\s*)$",
+    re.IGNORECASE,
+)
+
+
+def is_purchasable(raw: str) -> bool:
+    from .parse import parse_qty_unit
+
+    text = re.sub(r"\([^)]*\)", " ", raw or "").strip()
+    if not text or text.endswith(":"):
+        return False  # section header, e.g. "To garnish:"
+    _, _, name = parse_qty_unit(text)
+    name = (name or text).strip(" .,:;")
+    if not name or not any(ch.isalpha() for ch in name):
+        return False
+    return not _NOT_PURCHASABLE.match(name)
+
+
 def _is_staple(name: str, staples: list[str]) -> bool:
     import re
 
@@ -94,6 +117,8 @@ def build_grocery_list(
                     "raw": f"{sub_item.name if sub_item else sub_id} (subbed for {ing.raw})",
                 })
             if ing.is_optional:
+                continue
+            if not is_purchasable(ing.raw):
                 continue
             # A known item with no stated amount ("cilantro, for garnish") is
             # still that item: it belongs in its own aisle and merges with the

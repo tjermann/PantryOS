@@ -326,3 +326,94 @@ class TestAmountlessKnownItems:
         rows = [l for l in self._line_names([(measured, 4), (garnish, 4)])
                 if "hicken" in l[0]]
         assert sum(q for _, _, q in rows if q) == 2
+
+
+class TestNonPurchases:
+    """Tap water and 'For the sauce:' headers are not shopping."""
+
+    def test_water_and_headers_are_skipped(self):
+        from mealplanner.grocery.pipeline import is_purchasable
+
+        for raw in ["2 cups water", "1 cup cold water", "water",
+                    "To garnish:", "For the sauce:", ":", "  "]:
+            assert not is_purchasable(raw), raw
+
+    def test_real_ingredients_survive(self):
+        from mealplanner.grocery.pipeline import is_purchasable
+
+        for raw in ["1 lb chicken breasts", "Cotija cheese", "1 water chestnut can",
+                    "2 cups watermelon"]:
+            assert is_purchasable(raw), raw
+
+
+class TestCanonicalMatching:
+    def _items(self):
+        from mealplanner.allergen.ontology import load_ontology
+
+        return load_ontology()
+
+    def test_matches_despite_accents_and_padding(self):
+        from mealplanner.recipes.canonicalize import match_line
+
+        assert match_line("1/2 large jalapeño, seeded and minced", self._items()) == "jalapeno"
+
+    def test_a_modifier_is_not_mistaken_for_the_product(self):
+        """avocado oil is not an avocado; garlic powder is not garlic."""
+        from mealplanner.recipes.canonicalize import match_line
+
+        items = self._items()
+        assert match_line("1 teaspoon avocado oil", items) == "avocado-oil"
+        assert match_line("1 tsp garlic powder", items) == "garlic-powder"
+        assert match_line("2 cloves garlic, minced", items) == "garlic"
+        # a usage word still means buying the whole thing
+        assert match_line("2 tablespoons lime juice", items) == "lime"
+
+    def test_backfill_never_overwrites_an_existing_id(self):
+        from mealplanner.recipes.canonicalize import backfill
+
+        recipe = {"ingredients": [
+            {"canonical_item_id": "chicken-thigh", "raw": "1 lb chicken breasts"},
+            {"canonical_item_id": None, "raw": "1 lb chicken breasts"},
+        ]}
+        assert backfill([recipe], self._items()) == 1
+        assert recipe["ingredients"][0]["canonical_item_id"] == "chicken-thigh"
+        assert recipe["ingredients"][1]["canonical_item_id"] == "chicken-breast"
+
+
+class TestOntologyAllergenSafety:
+    """The backstop trusts this data, so cheese must declare dairy."""
+
+    def _items(self):
+        from mealplanner.allergen.ontology import load_ontology
+
+        return load_ontology()
+
+    def test_dairy_sounding_items_either_declare_it_or_deny_it(self):
+        """Silence is the bug: an item that reads as dairy must say which it is,
+        so 'coconut cream' stays safe for a dairy allergy and ricotta does not."""
+        for item in self._items().values():
+            name = item.name.lower()
+            if any(w in name for w in ("cheese", "ricotta", "cotija", "cream")):
+                assert ("dairy" in item.allergens) or ("dairy" in item.not_allergens), \
+                    f"{item.id} says nothing about dairy"
+
+    def test_wheat_staples_declare_gluten(self):
+        items = self._items()
+        for item_id in ("pasta", "lasagna-noodles", "breadcrumbs", "bread",
+                        "flour-tortilla", "farro", "couscous"):
+            assert "gluten" in items[item_id].allergens, item_id
+
+    def test_nuts_declare_tree_nut(self):
+        items = self._items()
+        for item_id in ("pecans", "walnuts", "almond", "cashew"):
+            assert "tree_nut" in items[item_id].allergens, item_id
+
+    def test_ids_are_unique(self):
+        import yaml
+        from pathlib import Path
+
+        raw = yaml.safe_load(
+            Path("mealplanner/allergen/ontology_data.yaml").read_text())
+        ids = [i["id"] for group in raw.values() for i in group] \
+            if isinstance(raw, dict) else [i["id"] for i in raw]
+        assert len(ids) == len(set(ids))

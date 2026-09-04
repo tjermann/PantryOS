@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Season = Literal["spring", "summer", "fall", "winter", "year_round"]
 Severity = Literal["allergy", "intolerance", "preference"]
@@ -40,6 +40,7 @@ class CanonicalItem(StrictModel):
 class RecipeIngredient(StrictModel):
     canonical_item_id: str | None = None
     raw: str
+
     qty: float | None = None
     unit: str | None = None
     prep_note: str | None = None
@@ -49,6 +50,22 @@ class RecipeIngredient(StrictModel):
     group: str | None = None
     # 1-based step index at which this ingredient enters the dish; enables Split.
     added_at_step: int | None = None
+
+    @field_validator("raw", mode="before")
+    @classmethod
+    def _decode_web_text(cls, value: object) -> object:
+        """Scraped recipes carry HTML entities (&frac12;, &amp;). Left alone they
+        reach the shopping list and the store search box verbatim."""
+        if not isinstance(value, str):
+            return value
+        import html
+        import re
+
+        text = html.unescape(html.unescape(value))  # some sources double-encode
+        for entity, plain in (("½", "1/2"), ("¼", "1/4"), ("¾", "3/4"),
+                              ("⅓", "1/3"), ("⅔", "2/3"), ("⅛", "1/8")):
+            text = text.replace(entity, plain)
+        return re.sub(r"\s+", " ", text).strip()
 
 
 class RecipeStep(StrictModel):
