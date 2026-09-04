@@ -279,3 +279,50 @@ class TestDisplayCollapse:
         assert collapse_rows([L("Dill", 1, "bunch"), L("Dill", 1, "bunch")]) == [
             ("Dill", "1 bunch")
         ]
+
+
+class TestAmountlessKnownItems:
+    """'Cilantro, for garnish' is cilantro, not a mystery row."""
+
+    def _line_names(self, recipes):
+        from mealplanner.allergen.ontology import load_ontology
+        from mealplanner.grocery.pipeline import build_grocery_list
+
+        result = build_grocery_list(
+            recipes=recipes, pantry=[], standing=[], items=load_ontology(),
+            budget_enabled=False, budget_cents=None, substitutions={},
+        )
+        return [(l.display_name, l.section, l.qty) for l in result.lines]
+
+    def test_it_merges_with_a_measured_mention_of_the_same_item(self):
+        from fixtures_helpers import make_recipe
+
+        garnish = make_recipe("a", ingredients=[
+            {"canonical_item_id": "cilantro", "raw": "Chopped cilantro, for garnish",
+             "qty": None, "unit": None},
+        ])
+        measured = make_recipe("b", ingredients=[
+            {"canonical_item_id": "cilantro", "raw": "2 tbsp minced cilantro",
+             "qty": 2, "unit": "tbsp"},
+        ])
+        names = self._line_names([(garnish, 4), (measured, 4)])
+        cilantro = [n for n in names if "ilantro" in n[0]]
+        assert len(cilantro) == 1, cilantro
+        assert cilantro[0][0] == "Cilantro"
+        assert cilantro[0][1] == "produce"  # its real aisle, not 'other'
+
+    def test_an_amountless_mention_does_not_erase_a_quantity(self):
+        """Herbs collapse to bunches, so use something bought by weight."""
+        from fixtures_helpers import make_recipe
+
+        measured = make_recipe("b", ingredients=[
+            {"canonical_item_id": "chicken-breast", "raw": "2 lb chicken breasts",
+             "qty": 2, "unit": "lb"},
+        ])
+        garnish = make_recipe("a", ingredients=[
+            {"canonical_item_id": "chicken-breast", "raw": "chicken breast, to serve",
+             "qty": None, "unit": None},
+        ])
+        rows = [l for l in self._line_names([(measured, 4), (garnish, 4)])
+                if "hicken" in l[0]]
+        assert sum(q for _, _, q in rows if q) == 2

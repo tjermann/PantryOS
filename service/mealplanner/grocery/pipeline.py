@@ -95,7 +95,10 @@ def build_grocery_list(
                 })
             if ing.is_optional:
                 continue
-            if ing.canonical_item_id is None or ing.qty is None:
+            # A known item with no stated amount ("cilantro, for garnish") is
+            # still that item: it belongs in its own aisle and merges with the
+            # other mentions, rather than becoming a second raw row.
+            if ing.canonical_item_id is None:
                 # Unmatched to the ontology: still aggregate by normalized name
                 # so '2 lemons' and '1 lemon' become one line of 3.
                 from .parse import aggregation_key, compatible_units, parse_qty_unit
@@ -132,12 +135,13 @@ def build_grocery_list(
                 continue
             item = items.get(ing.canonical_item_id)
             unit = normalize_unit(ing.unit)
-            qty = ing.qty * scale
+            qty = ing.qty * scale if ing.qty is not None else None
             # Key by (item, dimension) so '2 tbsp dill' and '1 tbsp dill' merge
             # instead of the second spilling into a duplicate row.
             key = f"{ing.canonical_item_id}|{dimension_of(unit)}"
             existing = lines.get(key)
-            if existing is not None and existing.qty is not None and existing.unit is not None:
+            if (existing is not None and existing.qty is not None
+                    and existing.unit is not None and qty is not None):
                 converted = convert(qty, unit, existing.unit)
                 if converted is not None:
                     existing.qty += converted
@@ -154,6 +158,8 @@ def build_grocery_list(
                     source_recipe_ids=[recipe.id],
                     est_price_cents=item.typical_price_cents if item else None,
                 )
+            elif qty is None:
+                existing.source_recipe_ids.append(recipe.id)  # nothing to add
             else:
                 # Same item, incompatible units — separate verbatim line.
                 unmatched.append(
