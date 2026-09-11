@@ -404,6 +404,11 @@ def install_cron_cmd(
         "pantryos-restock": f"0 17 * * 3 {prefix} run-restock --all-users >> var/log/restock.log 2>&1",
         "pantryos-tonight": f"0 15 * * * {prefix} run-tonight --all-users >> var/log/tonight.log 2>&1",
         "pantryos-inbox": f"0 8,18 * * * {prefix} run-inbox >> var/log/inbox.log 2>&1",
+        # A page that dies between reboots should come back on its own.
+        "pantryos-serve-watchdog": (
+            f"*/5 * * * * cd {SERVICE_ROOT} && {python} -m mealplanner ensure-serve "
+            f"--port {serve_port} >> var/log/serve.log 2>&1"
+        ),
         # restart-serve, not serve: it health-checks and replaces a dead or
         # stale process instead of failing because the port looks taken.
         "pantryos-serve": (
@@ -471,6 +476,40 @@ def scheduler(
     raise typer.Exit(run_scheduler(serve=serve, port=port))
 
 
+def _page_is_up(port: int) -> bool:
+    import ssl
+    import urllib.request
+
+    insecure = ssl.create_default_context()
+    insecure.check_hostname = False
+    insecure.verify_mode = ssl.CERT_NONE
+    for scheme, ctx in (("http", None), ("https", insecure)):
+        try:
+            with urllib.request.urlopen(
+                f"{scheme}://127.0.0.1:{port}/", timeout=3, context=ctx
+            ) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            continue
+    return False
+
+
+@app.command("ensure-serve")
+def ensure_serve_cmd(
+    host: str = typer.Option("0.0.0.0"),
+    port: int = typer.Option(8321),
+):
+    """Start the family web page only if it isn't answering. Safe to run every
+    few minutes from cron: a healthy page is left completely alone."""
+    if _page_is_up(port):
+        return
+    from datetime import datetime
+
+    typer.echo(f"[{datetime.now():%Y-%m-%d %H:%M}] family page was down — restarting")
+    restart_serve_cmd(host=host, port=port)
+
+
 @app.command("restart-serve")
 def restart_serve_cmd(
     host: str = typer.Option("0.0.0.0"),
@@ -480,11 +519,11 @@ def restart_serve_cmd(
     import subprocess
     import sys
     import time
-    import urllib.request
 
     from .credentials import SERVICE_ROOT
 
-    subprocess.run(["pkill", "-f", "mealplanner serve"], capture_output=True)
+    # Match the server's own argv, not any command line that merely mentions it.
+    subprocess.run(["pkill", "-f", "-m mealplanner serve --host"], capture_output=True)
     time.sleep(1.5)
     log_dir = SERVICE_ROOT / "var" / "log"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -494,23 +533,11 @@ def restart_serve_cmd(
              "--port", str(port)],
             cwd=SERVICE_ROOT, stdout=log, stderr=log, start_new_session=True,
         )
-    import ssl
-
-    insecure = ssl.create_default_context()
-    insecure.check_hostname = False
-    insecure.verify_mode = ssl.CERT_NONE
     for _ in range(20):
         time.sleep(0.5)
-        for scheme, ctx in (("https", insecure), ("http", None)):
-            try:
-                with urllib.request.urlopen(
-                    f"{scheme}://127.0.0.1:{port}/", timeout=3, context=ctx
-                ) as r:
-                    if r.status == 200:
-                        typer.echo(f"Family page is up on {scheme}, port {port}.")
-                        return
-            except Exception:
-                continue
+        if _page_is_up(port):
+            typer.echo(f"Family page is up on port {port}.")
+            return
     typer.echo("Started, but the health check didn't pass — see var/log/serve.log")
     raise typer.Exit(1)
 

@@ -250,3 +250,25 @@ class TestJobLock:
             # Non-zero: cron surfaces it instead of the week silently vanishing.
             assert cli._locked_run("u", lambda _: ran.append(1), wait_s=0) == 1
             assert ran == []
+
+
+class TestServeWatchdog:
+    """ensure-serve runs every few minutes, so it must never bounce a healthy page."""
+
+    def test_healthy_page_is_left_alone(self, monkeypatch):
+        from mealplanner import cli
+
+        restarts = []
+        monkeypatch.setattr(cli, "_page_is_up", lambda port: True)
+        monkeypatch.setattr(cli, "restart_serve_cmd", lambda **kw: restarts.append(kw))
+        cli.ensure_serve_cmd(host="0.0.0.0", port=8321)
+        assert restarts == []
+
+    def test_down_page_is_restarted(self, monkeypatch):
+        from mealplanner import cli
+
+        restarts = []
+        monkeypatch.setattr(cli, "_page_is_up", lambda port: False)
+        monkeypatch.setattr(cli, "restart_serve_cmd", lambda **kw: restarts.append(kw))
+        cli.ensure_serve_cmd(host="0.0.0.0", port=8321)
+        assert restarts == [{"host": "0.0.0.0", "port": 8321}]
