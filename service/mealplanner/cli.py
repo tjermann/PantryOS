@@ -4,6 +4,7 @@ UI (`mealplanner serve`) instead."""
 from __future__ import annotations
 
 import fcntl
+import os
 import sys
 import time
 from datetime import date
@@ -502,12 +503,76 @@ def ensure_serve_cmd(
 ):
     """Start the family web page only if it isn't answering. Safe to run every
     few minutes from cron: a healthy page is left completely alone."""
-    if _page_is_up(port):
-        return
     from datetime import datetime
 
-    typer.echo(f"[{datetime.now():%Y-%m-%d %H:%M}] family page was down — restarting")
+    stamp = f"[{datetime.now():%Y-%m-%d %H:%M}]"
+    if _page_is_up(port):
+        # Up, but possibly living inside a desktop session. systemd-oomd kills
+        # whole cgroups under memory pressure, so a server started from a
+        # terminal dies with that terminal. Restarting from here (cron, which
+        # runs outside the user session) moves it somewhere it survives.
+        if _in_user_session(_server_pids()) and not _in_user_session([os.getpid()]):
+            typer.echo(f"{stamp} family page is inside a desktop session — moving it "
+                       f"out of reach of the memory killer")
+            restart_serve_cmd(host=host, port=port)
+        return
+    typer.echo(f"{stamp} family page was down — restarting")
     restart_serve_cmd(host=host, port=port)
+
+
+def _stop_servers(timeout_s: float = 10.0) -> None:
+    """Stop running family-page servers and wait until they are really gone.
+
+    Matched on the server's exact argv rather than a pkill pattern: a pattern
+    that starts with "-" is parsed as a pkill option and silently kills nothing,
+    which then leaves the new server unable to bind the port."""
+    import signal
+    import time
+
+    pids = [p for p in _server_pids() if p != os.getpid()]
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        alive = [p for p in pids if Path(f"/proc/{p}").exists()]
+        if not alive:
+            return
+        time.sleep(0.25)
+    for pid in alive:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    time.sleep(0.5)
+
+
+def _server_pids() -> list[int]:
+    pids = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        if b"mealplanner" in argv and b"serve" in argv and b"--host" in argv:
+            pids.append(int(entry.name))
+    return pids
+
+
+def _in_user_session(pids: list[int]) -> bool:
+    """True if any of these processes sits under the desktop user manager —
+    the tree systemd-oomd sweeps."""
+    for pid in pids:
+        try:
+            if "/user@" in Path(f"/proc/{pid}/cgroup").read_text():
+                return True
+        except OSError:
+            continue
+    return False
 
 
 @app.command("restart-serve")
@@ -522,9 +587,7 @@ def restart_serve_cmd(
 
     from .credentials import SERVICE_ROOT
 
-    # Match the server's own argv, not any command line that merely mentions it.
-    subprocess.run(["pkill", "-f", "-m mealplanner serve --host"], capture_output=True)
-    time.sleep(1.5)
+    _stop_servers()
     log_dir = SERVICE_ROOT / "var" / "log"
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "serve.log", "ab") as log:

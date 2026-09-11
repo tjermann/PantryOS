@@ -272,3 +272,46 @@ class TestServeWatchdog:
         monkeypatch.setattr(cli, "restart_serve_cmd", lambda **kw: restarts.append(kw))
         cli.ensure_serve_cmd(host="0.0.0.0", port=8321)
         assert restarts == [{"host": "0.0.0.0", "port": 8321}]
+
+
+class TestServeRelocation:
+    """A healthy page inside the desktop session gets moved — but only by cron."""
+
+    def _run(self, monkeypatch, *, server_in_session, caller_in_session):
+        import os
+
+        from mealplanner import cli
+
+        restarts = []
+        monkeypatch.setattr(cli, "_page_is_up", lambda port: True)
+        monkeypatch.setattr(cli, "_server_pids", lambda: [111])
+        monkeypatch.setattr(
+            cli, "_in_user_session",
+            lambda pids: server_in_session if pids == [111] else caller_in_session,
+        )
+        monkeypatch.setattr(cli, "restart_serve_cmd", lambda **kw: restarts.append(kw))
+        cli.ensure_serve_cmd(host="0.0.0.0", port=8321)
+        return restarts
+
+    def test_cron_moves_a_session_bound_server(self, monkeypatch):
+        assert self._run(monkeypatch, server_in_session=True, caller_in_session=False)
+
+    def test_a_terminal_never_triggers_a_pointless_move(self, monkeypatch):
+        assert not self._run(monkeypatch, server_in_session=True, caller_in_session=True)
+
+    def test_a_safe_server_is_left_alone(self, monkeypatch):
+        assert not self._run(monkeypatch, server_in_session=False, caller_in_session=False)
+
+
+class TestStopServers:
+    def test_really_stops_the_process_before_returning(self, monkeypatch):
+        """A server still holding the port makes the replacement fail to bind."""
+        import subprocess
+        import sys
+
+        from mealplanner import cli
+
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        monkeypatch.setattr(cli, "_server_pids", lambda: [child.pid])
+        cli._stop_servers(timeout_s=5)
+        assert child.wait(timeout=5) is not None
