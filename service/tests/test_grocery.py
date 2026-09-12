@@ -417,3 +417,60 @@ class TestOntologyAllergenSafety:
         ids = [i["id"] for group in raw.values() for i in group] \
             if isinstance(raw, dict) else [i["id"] for i in raw]
         assert len(ids) == len(set(ids))
+
+
+class TestGroupHeaders:
+    """'Sauce' heading the Sauce group is a title, not a thing to buy."""
+
+    def _names(self, ingredients):
+        from fixtures_helpers import make_recipe
+        from mealplanner.allergen.ontology import load_ontology
+        from mealplanner.grocery.pipeline import build_grocery_list
+
+        result = build_grocery_list(
+            recipes=[(make_recipe("r", ingredients=ingredients), 4)], pantry=[],
+            standing=[], items=load_ontology(), budget_enabled=False,
+            budget_cents=None, substitutions={},
+        )
+        return [l.display_name for l in result.lines]
+
+    def test_header_without_a_colon_is_dropped(self):
+        names = self._names([
+            {"raw": "Sauce", "group": "Sauce", "qty": None},
+            {"raw": "Veggies and chicken", "group": "Veggies and chicken", "qty": None},
+            {"raw": "For serving", "group": "For serving", "qty": None},
+            {"raw": "1/4 cup ketchup", "group": "Sauce", "qty": 0.25, "unit": "cup",
+             "canonical_item_id": "ketchup"},
+        ])
+        assert names == ["Ketchup"]
+
+    def test_a_real_item_named_like_its_group_is_kept_when_it_has_an_amount(self):
+        names = self._names([
+            {"raw": "Pasta", "group": "Pasta", "qty": 10, "unit": "oz",
+             "canonical_item_id": "pasta"},
+        ])
+        assert names == ["Pasta"]
+
+    def test_an_ungrouped_amountless_item_is_kept(self):
+        names = self._names([
+            {"raw": "Chopped roasted peanuts", "group": None, "qty": None,
+             "canonical_item_id": "peanut"},
+        ])
+        assert len(names) == 1
+
+
+class TestWeekTwoMatches:
+    def test_ground_chicken_rice_and_pita(self):
+        from mealplanner.allergen.ontology import load_ontology
+        from mealplanner.recipes.canonicalize import match_line
+
+        items = load_ontology()
+        assert match_line("1 pound lean ground chicken", items) == "ground-chicken"
+        assert match_line("1 pound ground chicken (or turkey or sub beef!)", items) == \
+            "ground-chicken"
+        assert match_line("2 cups of cooked rice of choice", items) == "rice"
+        assert match_line("Warm torn pita, for scooping", items) == "pita"
+        # the plain 'rice' alias must not swallow different products
+        assert match_line("2 tablespoons rice vinegar", items) == "rice-vinegar"
+        assert match_line("8 oz rice noodles", items) == "rice-noodles"
+        assert items["pita"].allergens == ["gluten"]

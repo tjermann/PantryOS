@@ -67,6 +67,15 @@ _NOT_PURCHASABLE = re.compile(
 )
 
 
+def _is_group_header(ing) -> bool:
+    """A recipe section title stored as an ingredient: no amount, and its text is
+    just the name of the group it heads ("Sauce" in group "Sauce"). Many sites
+    emit these without a trailing colon, so the colon check alone misses them."""
+    if ing.qty is not None or not ing.group:
+        return False
+    return ing.raw.strip(" :").lower() == ing.group.strip(" :").lower()
+
+
 def is_purchasable(raw: str) -> bool:
     from .parse import parse_qty_unit
 
@@ -119,6 +128,8 @@ def build_grocery_list(
             if ing.is_optional:
                 continue
             if not is_purchasable(ing.raw):
+                continue
+            if _is_group_header(ing):
                 continue
             # A known item with no stated amount ("cilantro, for garnish") is
             # still that item: it belongs in its own aisle and merges with the

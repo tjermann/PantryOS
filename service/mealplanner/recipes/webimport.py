@@ -295,6 +295,17 @@ def import_from_url(
             for i, s in enumerate(data["steps"])
         ],
     }
+    # Match lines to canonical items now, at import, so a new recipe never
+    # reaches a shopping list as raw text or buys a duplicate of something
+    # another recipe already calls for.
+    from ..allergen.ontology import load_ontology
+    from ..schemas.domain import RecipeIngredient
+    from .canonicalize import backfill
+
+    for ingredient in parsed["ingredients"]:
+        ingredient["raw"] = RecipeIngredient(raw=ingredient.get("raw", "")).raw
+    backfill([parsed], load_ontology())
+
     cache_dir = parsed_cache_dir(user, base)
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / f"{slug}.json").write_text(json.dumps(parsed, indent=2))

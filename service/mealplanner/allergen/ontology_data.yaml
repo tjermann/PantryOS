@@ -51,6 +51,7 @@ items:
   - { id: chicken-thigh, name: Chicken thighs, aliases: [boneless chicken thighs, chicken thigh], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 899 }
   - { id: chicken-breast, name: Chicken breasts, aliases: [boneless skinless chicken breasts, chicken breast], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 999 }
   - { id: ground-beef, name: Ground beef, aliases: [85% lean ground beef], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 799 }
+  - { id: ground-chicken, name: Ground chicken, aliases: [lean ground chicken, ground chicken breast], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 699 }
   - { id: ground-turkey, name: Ground turkey, aliases: [lean ground turkey, 93% lean ground turkey, 94% lean ground turkey, ground turkey breast], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 699 }
   - { id: pork-chop, name: Pork chops, aliases: [bone-in pork chops], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 899 }
   - { id: italian-sausage, name: Italian sausage, aliases: [sweet italian sausage, hot italian sausage], store_section: meat_seafood, perishability: perishable, allergens: [], typical_price_cents: 699 }
@@ -86,7 +87,7 @@ items:
   - { id: cucumber, name: Cucumbers, aliases: [english cucumber, cucumber], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 149 }
   - { id: avocado, name: Avocados, aliases: [avocado], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 199 }
   - { id: potatoes, name: Yukon gold potatoes, aliases: [potatoes, yukon golds], store_section: produce, perishability: stable, allergens: [], typical_price_cents: 399 }
-  - { id: rice, name: Jasmine rice, aliases: [white rice, long-grain rice, basmati rice], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 599 }
+  - { id: rice, name: Jasmine rice, aliases: [white rice, long-grain rice, basmati rice, brown rice, cooked rice, rice], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 599 }
   - { id: quinoa, name: Quinoa, aliases: [], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 649 }
   - { id: olive-oil, name: Olive oil, aliases: [extra-virgin olive oil, evoo], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 999 }
   - { id: vegetable-oil, name: Vegetable oil, aliases: [neutral oil, canola oil], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 549 }
@@ -175,3 +176,11 @@ items:
   - { id: turmeric, name: Turmeric, aliases: [ground turmeric], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 349 }
   - { id: cayenne, name: Cayenne pepper, aliases: [ground cayenne], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 249 }
   - { id: ginger-ground, name: Ground ginger, aliases: [], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 299 }
+  - { id: ketchup, name: Ketchup, aliases: [tomato ketchup], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 299 }
+  - { id: bbq-sauce, name: BBQ sauce, aliases: [barbecue sauce, bbq sauce], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: worcestershire, name: Worcestershire sauce, aliases: [worcestershire], store_section: pantry, perishability: stable, allergens: [fish], typical_price_cents: 349 }
+  - { id: yellow-mustard, name: Yellow mustard, aliases: [mustard], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 199 }
+  - { id: burger-buns, name: Hamburger buns, aliases: [hamburger buns, burger buns, brioche buns, sandwich buns, slider buns], store_section: bakery, perishability: perishable, allergens: [gluten], typical_price_cents: 399 }
+  - { id: sriracha, name: Sriracha, aliases: [hot sauce, chili garlic sauce], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: mayonnaise, name: Mayonnaise, aliases: [mayo, avocado mayo], store_section: pantry, perishability: stable, allergens: [egg], typical_price_cents: 499 }
+  - { id: pita, name: Pita bread, aliases: [pita, pitas, naan, flatbread], store_section: bakery, perishability: perishable, allergens: [gluten], typical_price_cents: 349 }
