@@ -67,6 +67,20 @@ _NOT_PURCHASABLE = re.compile(
 )
 
 
+# Produce bought whole however a recipe measures it: "2 tsp lemon juice" still
+# means buying a lemon, "3 cloves" means a head of garlic. Factors convert one
+# recipe unit into purchase units; an unknown unit is taken as whole items.
+_BOUGHT_WHOLE: dict[str, tuple[str, dict[str, float]]] = {
+    "garlic": ("head", {"head": 1.0, "clove": 0.1, "each": 0.1,
+                        "tbsp": 0.3, "tsp": 0.1}),
+    "lemon": ("each", {"each": 1.0, "tbsp": 1 / 3, "tsp": 1 / 9,
+                       "cup": 16 / 3, "ml": 1 / 45}),
+    "lime": ("each", {"each": 1.0, "tbsp": 1 / 2, "tsp": 1 / 6,
+                      "cup": 8.0, "ml": 1 / 30}),
+    "ginger": ("piece", {"each": 1.0, "inch": 1 / 3, "tbsp": 1 / 3, "tsp": 1 / 9}),
+}
+
+
 def _is_group_header(ing) -> bool:
     """A recipe section title stored as an ingredient: no amount, and its text is
     just the name of the group it heads ("Sauce" in group "Sauce"). Many sites
@@ -232,9 +246,36 @@ def build_grocery_list(
         else:
             primary.source_recipe_ids.extend(line.source_recipe_ids)
             lines.pop(key)
+    for stray in [l for l in unmatched if l.canonical_item_id in herb_lines]:
+        herb_lines[stray.canonical_item_id].source_recipe_ids.extend(stray.source_recipe_ids)
+        unmatched.remove(stray)
     for item_id, line in herb_lines.items():
         line.unit = "bunch"
         line.qty = float(max(1, math.ceil(herb_bunches.get(item_id, 0.0) - 0.01)))
+
+    # 1c. Whole produce: every mention of the item — including ones stranded in
+    # `unmatched` by an unconvertible unit — becomes one count, rounded up.
+    for item_id, (buy_unit, per_unit) in _BOUGHT_WHOLE.items():
+        mentions = [l for l in [*lines.values(), *unmatched]
+                    if l.canonical_item_id == item_id]
+        if not mentions:
+            continue
+        total = 0.0
+        for mention in mentions:
+            if mention.qty is None:
+                continue
+            factor = per_unit.get(normalize_unit(mention.unit))
+            total += mention.qty * (factor if factor is not None else 1.0)
+        primary = mentions[0]
+        for mention in mentions[1:]:
+            primary.source_recipe_ids.extend(mention.source_recipe_ids)
+        for key in [k for k, v in lines.items()
+                    if v.canonical_item_id == item_id and v is not primary]:
+            lines.pop(key)
+        unmatched[:] = [l for l in unmatched
+                        if l.canonical_item_id != item_id or l is primary]
+        primary.unit = buy_unit
+        primary.qty = float(max(1, math.ceil(total - 0.01)))
 
     # 2. Subtract confirmed pantry stock.
     for pantry_item in pantry:

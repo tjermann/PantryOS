@@ -474,3 +474,61 @@ class TestWeekTwoMatches:
         assert match_line("2 tablespoons rice vinegar", items) == "rice-vinegar"
         assert match_line("8 oz rice noodles", items) == "rice-noodles"
         assert items["pita"].allergens == ["gluten"]
+
+
+class TestBoughtWhole:
+    """You buy lemons and heads of garlic, not teaspoons of juice or loose cloves."""
+
+    def _result(self, *ingredient_lists):
+        from fixtures_helpers import make_recipe
+        from mealplanner.allergen.ontology import load_ontology
+        from mealplanner.grocery.pipeline import build_grocery_list
+
+        recipes = [(make_recipe(f"r{i}", ingredients=ings), 4)
+                   for i, ings in enumerate(ingredient_lists)]
+        return build_grocery_list(
+            recipes=recipes, pantry=[], standing=[], items=load_ontology(),
+            budget_enabled=False, budget_cents=None, substitutions={},
+        )
+
+    def _rows(self, result, name):
+        return [(l.qty, l.unit) for l in result.lines if l.display_name == name]
+
+    def test_lemon_juice_becomes_whole_lemons(self):
+        result = self._result(
+            [{"canonical_item_id": "lemon", "raw": "2 tsp lemon juice", "qty": 2, "unit": "tsp"}],
+            [{"canonical_item_id": "lemon", "raw": "3 tbsp lemon juice", "qty": 3, "unit": "tbsp"}],
+        )
+        assert self._rows(result, "Lemons") == [(2.0, "each")]  # 2/9 + 1 -> 2
+
+    def test_garlic_in_mismatched_units_is_one_row_of_heads(self):
+        """'3 garlic cloves' (each) and '3 cloves garlic' (clove) used to split."""
+        result = self._result(
+            [{"canonical_item_id": "garlic", "raw": "3 garlic cloves", "qty": 3, "unit": "each"}],
+            [{"canonical_item_id": "garlic", "raw": "3 cloves garlic", "qty": 3, "unit": "clove"}],
+        )
+        assert self._rows(result, "Garlic") == [(1.0, "head")]
+
+    def test_a_dozen_cloves_needs_two_heads(self):
+        result = self._result(
+            [{"canonical_item_id": "garlic", "raw": "12 cloves garlic", "qty": 12, "unit": "clove"}],
+        )
+        assert self._rows(result, "Garlic") == [(2.0, "head")]
+
+    def test_whole_limes_keep_their_count(self):
+        result = self._result(
+            [{"canonical_item_id": "lime", "raw": "2 limes", "qty": 2, "unit": "each"}],
+        )
+        assert self._rows(result, "Limes") == [(2.0, "each")]
+
+    def test_grated_ginger_is_one_piece(self):
+        result = self._result(
+            [{"canonical_item_id": "ginger", "raw": "1 tbsp grated ginger", "qty": 1, "unit": "tbsp"}],
+        )
+        assert self._rows(result, "Ginger") == [(1.0, "piece")]
+
+    def test_amountless_mention_still_buys_one(self):
+        result = self._result(
+            [{"canonical_item_id": "lemon", "raw": "lemon wedges, to serve", "qty": None, "unit": None}],
+        )
+        assert self._rows(result, "Lemons") == [(1.0, "each")]

@@ -22,6 +22,8 @@ _UNIT_ALIASES: dict[str, str] = {
     "pint": "pint", "pints": "pint",
     "quart": "quart", "quarts": "quart",
     "clove": "clove", "cloves": "clove",
+    "head": "head", "heads": "head",
+    "inch": "inch", "inches": "inch", "knob": "each",
     "bunch": "bunch", "bunches": "bunch",
     "can": "can", "cans": "can",
     "each": "each", "count": "each", "piece": "each", "pieces": "each",

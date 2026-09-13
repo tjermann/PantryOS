@@ -70,9 +70,9 @@ items:
   - { id: bean-sprouts, name: Mung bean sprouts, aliases: [bean sprouts], store_section: produce, perishability: tender_herb, allergens: [], typical_price_cents: 249 }
   - { id: thyme, name: Thyme, aliases: [fresh thyme], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 249 }
   - { id: rosemary, name: Rosemary, aliases: [fresh rosemary], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 249 }
-  - { id: ginger, name: Ginger, aliases: [fresh ginger, ginger root], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 99 }
+  - { id: ginger, name: Ginger, aliases: [fresh ginger, ginger root], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 99 }
   - { id: scallions, name: Scallions, aliases: [green onions, spring onions], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 129 }
-  - { id: garlic, name: Garlic, aliases: [garlic cloves, head of garlic], store_section: produce, perishability: hardy_herb, allergens: [], typical_price_cents: 79 }
+  - { id: garlic, name: Garlic, aliases: [garlic cloves, head of garlic], store_section: produce, perishability: perishable, allergens: [], typical_price_cents: 79 }
 
   # --- produce & pantry staples ---
   - { id: yellow-onion, name: Yellow onions, aliases: [onion, onions, yellow onion], store_section: produce, perishability: stable, allergens: [], typical_price_cents: 129 }
