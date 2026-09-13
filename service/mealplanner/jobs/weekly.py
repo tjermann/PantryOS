@@ -85,6 +85,25 @@ def run_weekly(
             if plan.get("selected"):
                 print(f"[{user}] using the household's picks "
                       f"({len(plan['selected'])} chosen)")
+            # Rationales were written against the whole shortlist; strip any
+            # sentence that points at an option that isn't being cooked.
+            from ..planning.selection import drop_stale_references
+
+            chosen_ids = {e.recipe_id for e in entries}
+            dropped_titles = [
+                recipes_by_id[e["recipe_id"]].title
+                for e in plan.get("entries", [])
+                if e["recipe_id"] not in chosen_ids and e["recipe_id"] in recipes_by_id
+            ]
+            if dropped_titles:
+                kept = [recipes_by_id[e.recipe_id] for e in entries
+                        if e.recipe_id in recipes_by_id]
+                kept_text = [r.title for r in kept] + \
+                    [i.raw for r in kept for i in r.ingredients]
+                for entry in entries:
+                    entry.rationale = drop_stale_references(
+                        entry.rationale, kept_text, dropped_titles
+                    )
             proposal = PlanProposal(entries=entries)
             validation = validate_plan(
                 proposal, recipes_by_id, states, items, config.household
@@ -100,8 +119,10 @@ def run_weekly(
                     prompt_version=plan.get("prompt_version", "v1"),
                     model=plan.get("model", config.model),
                 )
+                n_lunch = sum(1 for e in entries if e.meal_type == "lunch")
                 print(f"[{user}] executing approved proposal "
-                      f"(v{plan.get('iteration', 1)}, {len(entries)} dinners)")
+                      f"(v{plan.get('iteration', 1)}, {len(entries) - n_lunch} dinners"
+                      f"{f', {n_lunch} lunch' if n_lunch else ''})")
             else:
                 print(f"[{user}] proposal failed revalidation; planning fresh")
 

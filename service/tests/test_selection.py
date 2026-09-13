@@ -180,3 +180,36 @@ class TestIterateRespectsPicks:
         plan = store.load_plan("2026-W35")
         kept = [e for e in plan["entries"] if e.get("ingredients_on_hand")]
         assert kept == [carried]
+
+
+class TestStaleReferences:
+    """A sentence about a dish nobody picked doesn't belong in the final email."""
+
+    KEPT = ["30-Minute Chicken Peanut Noodles", "30-Minute Mediterranean Chicken Bowls",
+            "3 garlic cloves, minced", "2 cups spinach"]
+    DROPPED = ["Turkey Sweet Potato Chili", "Thai Coconut Mussels with Garlic Lemongrass Toast",
+               "Sheet Pan Harissa Chicken with Chickpeas and Sweet Potatoes"]
+
+    def _drop(self, text):
+        from mealplanner.planning.selection import drop_stale_references
+
+        return drop_stale_references(text, self.KEPT, self.DROPPED)
+
+    def test_sentence_naming_an_unpicked_dish_is_removed(self):
+        text = ("The quick Asian noodle night, done in 30 minutes. "
+                "It uses up the rest of the chili's bell peppers.")
+        assert self._drop(text) == "The quick Asian noodle night, done in 30 minutes."
+
+    def test_words_shared_with_the_chosen_meals_never_cost_a_sentence(self):
+        """'garlic' is in a dropped title but also in what's being cooked."""
+        text = "Lots of garlic and chicken, ready in half an hour."
+        assert self._drop(text) == text
+
+    def test_plural_forms_are_recognised(self):
+        assert self._drop("Pairs well with the leftover sweet potatoes.") == ""
+
+    def test_nothing_dropped_means_nothing_changes(self):
+        from mealplanner.planning.selection import drop_stale_references
+
+        text = "It uses up the chili's bell peppers."
+        assert drop_stale_references(text, self.KEPT, []) == text

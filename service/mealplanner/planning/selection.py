@@ -80,3 +80,38 @@ def needs_shopping(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The meals whose ingredients still have to be bought — carried-over
     dishes were paid for in the week they were skipped."""
     return [e for e in entries if not e.get("ingredients_on_hand")]
+
+
+def _words(text: str) -> set[str]:
+    """Normalised content words: 'chickpeas' and 'chickpea' are the same word."""
+    import re
+
+    out = set()
+    for word in re.findall(r"[a-z]+", text.lower()):
+        if len(word) < 4:
+            continue
+        if word.endswith("oes") and len(word) > 5:
+            word = word[:-2]          # potatoes -> potato
+        elif word.endswith("s") and not word.endswith("ss") and len(word) > 4:
+            word = word[:-1]          # chickpeas -> chickpea
+        out.add(word)
+    return out
+
+
+def drop_stale_references(rationale: str, kept_text: list[str],
+                          dropped_titles: list[str]) -> str:
+    """Remove sentences that point at a shortlist option nobody picked.
+
+    Rationales are written while every option is still on the table ("uses up
+    the chili's bell peppers"). Once the week is chosen, a sentence naming a dish
+    that isn't being cooked is wrong. A word only counts as a reference if it
+    belongs to a dropped dish's title and to nothing being cooked — so shared
+    words like 'chicken' or 'garlic' never cost a sentence."""
+    import re
+
+    stale = set().union(*map(_words, dropped_titles)) if dropped_titles else set()
+    stale -= set().union(*map(_words, kept_text)) if kept_text else set()
+    if not stale or not rationale:
+        return rationale
+    sentences = re.split(r"(?<=[.!?])\s+", rationale.strip())
+    return " ".join(s for s in sentences if not (_words(s) & stale))
