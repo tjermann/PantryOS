@@ -198,3 +198,25 @@ class TestDriedHerbEdgeCases:
         }]}
         assert rematch_herb_forms([recipe], items()) == 0
         assert recipe["ingredients"][0]["canonical_item_id"] == "parsley"
+
+
+class TestCookingWindow:
+    def test_herbs_must_last_through_the_week_they_are_cooked(self):
+        """Mint bought last Sunday is 8-11 days old by the next week's meals."""
+        bought_last_week = (TODAY + timedelta(days=0)).isoformat()  # expires on shop day
+        result = build([ing("mint", "2 tbsp mint", 2, "tbsp")],
+                       leftovers=[Batch("mint", "Mint", 0.75, "bunch", bought_last_week)])
+        assert any(n.lower().startswith("mint") for n in names(result))
+
+    def test_long_keeping_leftovers_still_count(self):
+        still_good = (TODAY + timedelta(days=10)).isoformat()
+        result = build([ing("thyme", "1 tbsp thyme", 1, "tbsp")],
+                       leftovers=[Batch("thyme", "Thyme", 0.75, "bunch", still_good)])
+        assert not any(n.lower().startswith("thyme") for n in names(result))
+
+    def test_the_page_shows_only_what_the_list_will_use(self):
+        from mealplanner.grocery.leftovers import on_hand
+
+        ledger = [Batch("mint", "Mint", 0.75, "bunch", TODAY.isoformat()),
+                  Batch("sriracha", "Sriracha", 33, "tbsp", LATER)]
+        assert [r["item_id"] for r in on_hand(ledger, TODAY)] == ["sriracha"]

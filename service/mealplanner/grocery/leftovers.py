@@ -21,6 +21,9 @@ from ..schemas.domain import CanonicalItem
 from .units import convert, normalize_unit
 
 EPSILON = 1e-6
+# Shopping happens before the week's cooking, so a leftover has to still be good
+# when it's used, not just on the day the list is built.
+COOKING_WINDOW_DAYS = 4
 
 
 @dataclass(frozen=True)
@@ -109,6 +112,10 @@ class Batch:
     def fresh(self, as_of: date) -> bool:
         return date.fromisoformat(self.expires) >= as_of
 
+    def usable(self, shop_day: date) -> bool:
+        """Still good at the end of the cooking week it would be used in."""
+        return self.fresh(shop_day + timedelta(days=COOKING_WINDOW_DAYS))
+
 
 @dataclass(frozen=True)
 class UsedLeftover:
@@ -155,7 +162,7 @@ def apply_leftovers(lines: dict[str, Any], ledger: list[Batch],
     """Cover grocery lines from leftovers. Removes lines that are fully covered,
     shrinks ones that are partly covered, and reports what was drawn on. The
     ledger passed in is not modified."""
-    stock = [Batch(**asdict(b)) for b in ledger if b.fresh(as_of)]
+    stock = [Batch(**asdict(b)) for b in ledger if b.usable(as_of)]
     used: list[UsedLeftover] = []
     for key, line in list(lines.items()):
         item = items.get(line.canonical_item_id or "")
@@ -216,7 +223,7 @@ def on_hand(ledger: list[Batch], as_of: date) -> list[dict[str, Any]]:
     """One row per item still good on `as_of`, for people to read."""
     rows: dict[str, dict[str, Any]] = {}
     for b in ledger:
-        if not b.fresh(as_of):
+        if not b.usable(as_of):  # show exactly what the list will draw on
             continue
         row = rows.setdefault(b.item_id, {"item_id": b.item_id, "name": b.name,
                                           "qty": 0.0, "unit": b.unit, "expires": b.expires})
