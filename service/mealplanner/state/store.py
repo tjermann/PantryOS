@@ -263,6 +263,30 @@ class StateStore:
         cleaned = sorted({s.strip().lower() for s in staples if s.strip()})
         _atomic_write(self.root / "staples.yaml", yaml.safe_dump(cleaned))
 
+    # -- leftovers (partly used purchases still in the kitchen) -------------
+    def load_leftovers(self) -> list:
+        from ..grocery.leftovers import Batch
+
+        path = self.root / "leftovers.yaml"
+        if not path.exists():
+            return []
+        return [Batch(**row) for row in (yaml.safe_load(path.read_text()) or [])]
+
+    def save_leftovers(self, batches: list) -> None:
+        from dataclasses import asdict
+
+        _atomic_write(
+            self.root / "leftovers.yaml",
+            yaml.safe_dump([asdict(b) for b in batches], sort_keys=False),
+        )
+
+    def clear_leftover(self, item_id: str) -> bool:
+        """'Ran out': forget every leftover of this item so it gets bought."""
+        batches = self.load_leftovers()
+        kept = [b for b in batches if b.item_id != item_id]
+        self.save_leftovers(kept)
+        return len(kept) != len(batches)
+
     # -- learnings ----------------------------------------------------------
     def load_learnings(self) -> str:
         path = self.root / "learnings.md"

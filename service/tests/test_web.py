@@ -214,3 +214,19 @@ def test_select_requires_a_valid_token(client, users_base):
     _shortlist_plan(users_base)
     assert client.post("/select/test", data={"t": "forged", "dinner": ["dish-0"]},
                        follow_redirects=False).status_code == 403
+
+
+def test_leftovers_are_listed_and_can_be_marked_ran_out(client, users_base):
+    from mealplanner.grocery.leftovers import Batch
+
+    store = StateStore(user_dir("test", users_base))
+    store.save_leftovers([Batch("sriracha", "Sriracha", 33, "tbsp", "2099-01-01")])
+    url = feedback_url("test", "", users_base)
+    body = client.get(url).text
+    assert "Leftovers we're counting on" in body and "Sriracha" in body
+    token = url.split("t=")[1]
+    r = client.post("/leftovers/test", data={"t": token, "item": "sriracha"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    assert store.load_leftovers() == []
+    assert "Leftovers we're counting on" not in client.get(url).text

@@ -166,6 +166,37 @@ def _picker_html(user: str, config, store, plan: dict, t: str | None,
     )
 
 
+def _leftovers_html(user: str, store, t: str | None, latest) -> str:
+    """What the list is counting on from earlier orders, each with a way to say
+    it's actually gone."""
+    from datetime import date as _date, timedelta
+
+    from ..grocery.leftovers import describe, on_hand
+
+    as_of = _date.today()
+    if latest and latest[1].get("status") == "proposed" and latest[1].get("week_dates"):
+        as_of = _date.fromisoformat(latest[1]["week_dates"][0]) - timedelta(days=1)
+    rows = on_hand(store.load_leftovers(), as_of)
+    if not rows:
+        return ""
+    items = "".join(
+        f"<li>{esc(r['name'])} — {esc(describe(r['qty'], r['unit']))} "
+        f"<small>(good until {esc(r['expires'])})</small> "
+        f"<form method='post' action='/leftovers/{q(user)}' style='display:inline'>"
+        f"<input type='hidden' name='t' value='{esc(t)}'>"
+        f"<input type='hidden' name='item' value=\"{esc(r['item_id'])}\">"
+        f"<button style='padding:2px 8px;font-size:12px'>ran out</button></form></li>"
+        for r in rows
+    )
+    return (
+        "<h2>Leftovers we're counting on</h2><div class='card'>"
+        "<p><small>Partly used from earlier orders, so recipes that need them won't buy "
+        "more. If one is actually gone, tap <em>ran out</em> and it goes back on the "
+        "list.</small></p>"
+        f"<ul>{items}</ul></div>"
+    )
+
+
 def _check(user: str, token: str | None, base: Path | None = None) -> dict:
     if not token:
         raise HTTPException(403, "missing token — use the link from your email")
@@ -358,6 +389,8 @@ def create_app(base: Path | None = None) -> FastAPI:
                     "</form></div>"
                 )
 
+        parts.append(_leftovers_html(user, store, t, latest))
+
         staples_list = store.load_staples()
         staple_rows = "".join(
             f"<li>{esc(s)} — "
@@ -500,6 +533,16 @@ planner up to run <code>mealplanner setup</code>.</small></p>
                else "Buying everything on the list")
         return RedirectResponse(f"/u/{user}?t={t}&saved={msg.replace(' ', '+')}",
                                 status_code=303)
+
+    @app.post("/leftovers/{user}")
+    def leftovers(user: str, t: str = Form(...), item: str = Form(...)):
+        from urllib.parse import quote
+
+        _check(user, t, base)
+        cleared = StateStore(user_dir(user, base)).clear_leftover(item)
+        msg = ("Marked as ran out — it's back on the list" if cleared
+               else "That leftover was already cleared")
+        return RedirectResponse(f"/u/{q(user)}?t={t}&saved={quote(msg)}", status_code=303)
 
     @app.post("/staples/{user}")
     def staples(user: str, t: str = Form(...), action: str = Form(...),

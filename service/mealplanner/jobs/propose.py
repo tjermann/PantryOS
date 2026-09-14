@@ -12,7 +12,7 @@ several, whatever their config says.
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from ..config import load_user_config, user_dir
@@ -55,6 +55,8 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
         substitutions=config.household.item_substitutions,
         staples=store.load_staples(),
         excluded=store.load_exclusions(iso_week_of(week_dates[0])),
+        leftovers=store.load_leftovers(),
+        as_of=week_dates[0] - timedelta(days=1),
     )
     feedback_url = None
     recipe_links: dict[str, str] = {}

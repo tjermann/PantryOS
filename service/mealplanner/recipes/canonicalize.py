@@ -65,12 +65,24 @@ _TURNS_INTO_ANOTHER_PRODUCT = {
 }
 
 
+_DRIED_NOT_HERBS = {"dried-cranberries"}
+
+
 def match_line(raw: str, items: Mapping[str, CanonicalItem],
                phrases: list[tuple[str, str]] | None = None) -> str | None:
     text = clean_line(raw)
     if not text:
         return None
+    # "2 tsp fresh dill (or 1/2 tsp dried)" offers a choice, and fresh wins. Only
+    # a line that asks for dried without offering fresh maps to a dried item.
+    offers_fresh = re.search(r"\bfresh\b", fold(raw).lower()) is not None
     for phrase, item_id in (phrases if phrases is not None else _phrases(items)):
+        # A line offering fresh never resolves to a dried herb, even a different
+        # one ("fresh parsley, or a sprinkle of dried oregano" is parsley). Dried
+        # fruit isn't an herb form: "fresh or dried cranberries" stays dried.
+        if offers_fresh and item_id.startswith("dried-") \
+                and item_id not in _DRIED_NOT_HERBS:
+            continue
         singular = phrase[:-1] if phrase.endswith("s") else phrase
         found = re.search(rf"\b{re.escape(singular)}e?s?\b", text)
         if not found:
@@ -97,3 +109,22 @@ def backfill(recipes: Iterable[dict], items: Mapping[str, CanonicalItem]) -> int
                 ingredient["canonical_item_id"] = match
                 filled += 1
     return filled
+
+
+def rematch_herb_forms(recipes: Iterable[dict], items: Mapping[str, CanonicalItem]) -> int:
+    """Lines matched before dried herbs existed point at the fresh herb even when
+    the recipe says 'dried thyme'. Move those — and only those — to the dried
+    item; a line offering fresh keeps its fresh match."""
+    phrases = _phrases(items)
+    moved = 0
+    for recipe in recipes:
+        for ingredient in recipe.get("ingredients", []):
+            current = items.get(ingredient.get("canonical_item_id") or "")
+            if current is None or current.perishability not in ("tender_herb", "hardy_herb"):
+                continue
+            match = match_line(ingredient.get("raw", ""), items, phrases)
+            # Only ever the same herb's dried form: thyme -> dried-thyme.
+            if match == f"dried-{current.id}":
+                ingredient["canonical_item_id"] = match
+                moved += 1
+    return moved

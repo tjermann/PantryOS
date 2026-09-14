@@ -69,6 +69,7 @@
   {% if shortlist %}<p style="font-size: 13px; color: #777;">This covers the default picks. Choose different meals and the list updates to match.</p>{% endif %}
   {% if budget_line %}<p style="font-size: 13px;">{{ budget_line }}</p>{% endif %}
   {% if assumed_on_hand %}<p style="font-size: 13px; color: #777;">Assumed already in your pantry (not bought): {{ assumed_on_hand }}. Ran out of something? Mark it on the family page.</p>{% endif %}
+  {% if using_leftovers %}<p style="font-size: 13px; color: #2e7d32;">Using leftovers from earlier orders (not rebuying): {{ using_leftovers }}. Gone already? Tap "ran out" on the family page.</p>{% endif %}
   {% if removed_by_household %}<p style="font-size: 13px; color: #777;">Removed during review (you have enough): {{ removed_by_household }}</p>{% endif %}
   {% if proposal_note and feedback_url %}<p style="font-size: 13px;"><a href="{{ feedback_url }}" style="color:#c96f4a;">Review this list →</a> tap "have enough" on anything you don't need this week.</p>{% endif %}
   {% for section in grocery_sections %}

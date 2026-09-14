@@ -173,6 +173,8 @@ def run_weekly(
         excluded=store.load_exclusions(
             f"{week_dates[0].isocalendar().year}-W{week_dates[0].isocalendar().week:02d}"
         ),
+        leftovers=store.load_leftovers(),
+        as_of=today,
     )
 
     carts: list[dict] = []
@@ -260,6 +262,13 @@ def run_weekly(
             "review": None,  # filled in by `mealplanner review-orders`
         },
     )
+    # Whatever this order leaves over (the rest of a bottle, half an onion) is on
+    # hand for the weeks after.
+    from ..grocery.leftovers import settle
+
+    store.save_leftovers(settle(
+        store.load_leftovers(), grocery.leftovers_used, grocery.lines, items, today, iso_week
+    ))
     # These dishes are now on the calendar — record it so the don't-repeat
     # window works even when nobody gets around to rating anything.
     store.mark_planned(

@@ -184,3 +184,13 @@ items:
   - { id: sriracha, name: Sriracha, aliases: [hot sauce, chili garlic sauce], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
   - { id: mayonnaise, name: Mayonnaise, aliases: [mayo, avocado mayo], store_section: pantry, perishability: stable, allergens: [egg], typical_price_cents: 499 }
   - { id: pita, name: Pita bread, aliases: [pita, pitas, naan, flatbread], store_section: bakery, perishability: perishable, allergens: [gluten], typical_price_cents: 349 }
+  # --- dried herbs: bought only when a recipe asks for dried specifically ---
+  - { id: dried-oregano, name: Dried oregano, aliases: [dried oregano, oregano dried, dried oregano leaves], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: dried-thyme, name: Dried thyme, aliases: [dried thyme, thyme dried, dried thyme leaves], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: dried-parsley, name: Dried parsley, aliases: [dried parsley, parsley dried, parsley flakes], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 349 }
+  - { id: dried-basil, name: Dried basil, aliases: [dried basil, basil dried], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: dried-rosemary, name: Dried rosemary, aliases: [dried rosemary, rosemary dried], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: dried-dill, name: Dried dill, aliases: [dried dill, dill dried, dill weed], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 399 }
+  - { id: dried-mint, name: Dried mint, aliases: [dried mint, mint dried], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 449 }
+  - { id: dried-sage, name: Dried sage, aliases: [dried sage, rubbed sage, ground sage], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 449 }
+  - { id: dried-chives, name: Dried chives, aliases: [dried chives, freeze dried chives], store_section: pantry, perishability: stable, allergens: [], typical_price_cents: 449 }

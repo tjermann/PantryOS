@@ -9,7 +9,9 @@
 
 from __future__ import annotations
 
+import math
 import re
+from datetime import date
 
 from dataclasses import dataclass, field
 from typing import Literal, Mapping
@@ -38,6 +40,9 @@ class GroceryLine:
     est_price_cents: int | None = None
     pantry_adjusted: bool = False
     checked: bool = False
+    # What the recipes actually use, in `unit`. Can be less than what gets
+    # bought (half an onion, a tablespoon of a bottle); the gap is a leftover.
+    need: float | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +62,8 @@ class GroceryListResult:
     assumed_on_hand: list[str] = field(default_factory=list)
     # Items the household removed during review ("we have enough").
     removed_by_household: list[str] = field(default_factory=list)
+    # Leftovers from earlier orders used instead of buying again.
+    leftovers_used: list = field(default_factory=list)
 
 
 # Lines that appear among ingredients but are not things you buy: tap water, and
@@ -78,7 +85,24 @@ _BOUGHT_WHOLE: dict[str, tuple[str, dict[str, float]]] = {
     "lime": ("each", {"each": 1.0, "tbsp": 1 / 2, "tsp": 1 / 6,
                       "cup": 8.0, "ml": 1 / 30}),
     "ginger": ("piece", {"each": 1.0, "inch": 1 / 3, "tbsp": 1 / 3, "tsp": 1 / 9}),
+    "yellow-onion": ("each", {"each": 1.0, "cup": 1.0, "tbsp": 1 / 16, "tsp": 1 / 48,
+                              "lb": 2.5, "oz": 2.5 / 16}),
+    "red-onion": ("each", {"each": 1.0, "cup": 1.0, "tbsp": 1 / 16, "tsp": 1 / 48,
+                           "lb": 2.5, "oz": 2.5 / 16}),
+    "shallot": ("each", {"each": 1.0, "tbsp": 1 / 3, "tsp": 1 / 9, "cup": 16 / 3}),
 }
+
+# How much of one bunch a recipe measure uses (a bunch is about a cup chopped).
+_BUNCH_SHARE = {"bunch": 1.0, "cup": 1.0, "tbsp": 1 / 16, "tsp": 1 / 48,
+                "oz": 0.4, "g": 1 / 70, "each": 0.05}
+# An amountless mention ("to garnish") still uses some.
+AMOUNTLESS_SHARE = 0.25
+
+
+def _bunch_share(qty: float | None, unit: str | None) -> float | None:
+    if qty is None:
+        return None
+    return qty * _BUNCH_SHARE.get(normalize_unit(unit), 0.1)
 
 
 def _is_group_header(ing) -> bool:
@@ -120,6 +144,8 @@ def build_grocery_list(
     substitutions: Mapping[str, str] | None = None,
     staples: list[str] | None = None,
     excluded: list[str] | None = None,
+    leftovers: list | None = None,
+    as_of: date | None = None,
 ) -> GroceryListResult:
     lines: dict[str, GroceryLine] = {}
     unmatched: list[GroceryLine] = []
@@ -232,14 +258,24 @@ def build_grocery_list(
     import math
 
     herb_lines: dict[str, GroceryLine] = {}
-    herb_bunches: dict[str, float] = {}
+    herb_measured: dict[str, float] = {}
+    herb_amountless: dict[str, int] = {}
+
+    def _count_herb(item_id: str, mention: GroceryLine) -> None:
+        # Previously `qty or 0.0 if unit == "bunch" else 0.0`, which Python reads
+        # as `qty or (...)`: "2 tbsp dill" counted as two bunches.
+        share = _bunch_share(mention.qty, mention.unit)
+        if share is None:
+            herb_amountless[item_id] = herb_amountless.get(item_id, 0) + 1
+        else:
+            herb_measured[item_id] = herb_measured.get(item_id, 0.0) + share
+
     for key in list(lines):
         line = lines[key]
         item = items.get(line.canonical_item_id or "")
         if item is None or item.perishability not in ("tender_herb", "hardy_herb"):
             continue
-        bunches = line.qty or 0.0 if normalize_unit(line.unit) == "bunch" else 0.0
-        herb_bunches[item.id] = herb_bunches.get(item.id, 0.0) + bunches
+        _count_herb(item.id, line)
         primary = herb_lines.get(item.id)
         if primary is None:
             herb_lines[item.id] = line
@@ -247,11 +283,14 @@ def build_grocery_list(
             primary.source_recipe_ids.extend(line.source_recipe_ids)
             lines.pop(key)
     for stray in [l for l in unmatched if l.canonical_item_id in herb_lines]:
+        _count_herb(stray.canonical_item_id, stray)
         herb_lines[stray.canonical_item_id].source_recipe_ids.extend(stray.source_recipe_ids)
         unmatched.remove(stray)
     for item_id, line in herb_lines.items():
+        measured = herb_measured.get(item_id, 0.0)
         line.unit = "bunch"
-        line.qty = float(max(1, math.ceil(herb_bunches.get(item_id, 0.0) - 0.01)))
+        line.qty = float(max(1, math.ceil(measured - 0.01)))
+        line.need = measured + AMOUNTLESS_SHARE * herb_amountless.get(item_id, 0)
 
     # 1c. Whole produce: every mention of the item — including ones stranded in
     # `unmatched` by an unconvertible unit — becomes one count, rounded up.
@@ -261,8 +300,10 @@ def build_grocery_list(
         if not mentions:
             continue
         total = 0.0
+        amountless = 0
         for mention in mentions:
             if mention.qty is None:
+                amountless += 1
                 continue
             factor = per_unit.get(normalize_unit(mention.unit))
             total += mention.qty * (factor if factor is not None else 1.0)
@@ -276,6 +317,20 @@ def build_grocery_list(
                         if l.canonical_item_id != item_id or l is primary]
         primary.unit = buy_unit
         primary.qty = float(max(1, math.ceil(total - 0.01)))
+        primary.need = total + AMOUNTLESS_SHARE * amountless
+
+    # Anything not collapsed above needs exactly what's listed.
+    for line in [*lines.values(), *unmatched]:
+        if line.need is None:
+            line.need = line.qty
+
+    # 1d. Leftovers from earlier orders (half an onion, most of a bottle of
+    # sriracha, a nearly full spice jar) cover what they can before buying.
+    used_leftovers: list = []
+    if leftovers:
+        from .leftovers import apply_leftovers
+
+        used_leftovers = apply_leftovers(lines, leftovers, items, as_of or date.today())
 
     # 2. Subtract confirmed pantry stock.
     for pantry_item in pantry:
@@ -360,4 +415,5 @@ def build_grocery_list(
         ),
         assumed_on_hand=assumed,
         removed_by_household=removed,
+        leftovers_used=used_leftovers,
     )

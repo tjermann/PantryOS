@@ -192,6 +192,8 @@ def build_weekly_email_context(
         "proposal_note": proposal_note,
         "shortlist": shortlist,
         "assumed_on_hand": ", ".join(grocery.assumed_on_hand) or None,
+        "using_leftovers": ", ".join(
+            sorted({u.name for u in grocery.leftovers_used})) or None,
         "removed_by_household": ", ".join(grocery.removed_by_household) or None,
         "entries": entries,
         "lunches": lunches,

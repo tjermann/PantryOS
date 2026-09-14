@@ -496,6 +496,30 @@ def _page_is_up(port: int) -> bool:
     return False
 
 
+@app.command("rebuild-leftovers")
+def rebuild_leftovers_cmd(
+    user: str = typer.Option(..., help="Household name"),
+    dry_run: bool = typer.Option(False, help="Show the estimate without saving it"),
+):
+    """Estimate leftovers (opened sauces, spice jars, half onions) from recent
+    orders. Safe to re-run: it only ever counts what the orders really bought."""
+    from datetime import date
+
+    from .config import user_dir
+    from .grocery.leftovers import describe, on_hand, rebuild_from_history
+    from .state.store import StateStore
+
+    ledger = rebuild_from_history(user)
+    rows = on_hand(ledger, date.today())
+    if not rows:
+        typer.echo("No leftovers found in recent orders.")
+    for r in rows:
+        typer.echo(f"  {r['name']} — {describe(r['qty'], r['unit'])} (good until {r['expires']})")
+    if not dry_run:
+        StateStore(user_dir(user)).save_leftovers(ledger)
+        typer.echo(f"Saved {len(rows)} leftover item(s).")
+
+
 @app.command("ensure-serve")
 def ensure_serve_cmd(
     host: str = typer.Option("0.0.0.0"),

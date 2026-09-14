@@ -34,6 +34,13 @@ def grocery_for_plan(
         for e in needs_shopping(resolve_selection(plan, config.household))
         if e.get("recipe_id") in by_id
     ]
+    from datetime import date, timedelta
+
+    from .leftovers import from_before
+
+    # Leftovers must still be good on the day the order is placed.
+    shop_day = (date.fromisoformat(plan["week_dates"][0]) - timedelta(days=1)
+                if plan.get("week_dates") else date.today())
     return build_grocery_list(
         recipes=recipes,
         pantry=store.load_pantry(),
@@ -44,4 +51,6 @@ def grocery_for_plan(
         substitutions=config.household.item_substitutions,
         staples=store.load_staples(),
         excluded=store.load_exclusions(iso_week),
+        leftovers=from_before(store.load_leftovers(), iso_week),
+        as_of=shop_day,
     )
