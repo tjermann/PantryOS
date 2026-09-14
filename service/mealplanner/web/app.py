@@ -166,14 +166,17 @@ def _picker_html(user: str, config, store, plan: dict, t: str | None,
     )
 
 
-def _leftovers_html(user: str, store, t: str | None, latest) -> str:
-    """What the list is counting on from earlier orders, each with a way to say
-    it's actually gone."""
+def _leftovers_html(user: str, store, t: str | None, latest, planning_day: str) -> str:
+    """What the next list will draw on from earlier orders, each with a way to
+    say it's actually gone."""
     from datetime import date as _date, timedelta
 
     from ..grocery.leftovers import describe, on_hand
+    from ..jobs.common import next_weekday
 
-    as_of = _date.today()
+    # Judge freshness on the day the next order is placed, exactly as the list
+    # will: the open proposal's shopping day, else the next planning day.
+    as_of = next_weekday(_date.today(), planning_day)
     if latest and latest[1].get("status") == "proposed" and latest[1].get("week_dates"):
         as_of = _date.fromisoformat(latest[1]["week_dates"][0]) - timedelta(days=1)
     rows = on_hand(store.load_leftovers(), as_of)
@@ -389,7 +392,7 @@ def create_app(base: Path | None = None) -> FastAPI:
                     "</form></div>"
                 )
 
-        parts.append(_leftovers_html(user, store, t, latest))
+        parts.append(_leftovers_html(user, store, t, latest, config.planning_day))
 
         staples_list = store.load_staples()
         staple_rows = "".join(

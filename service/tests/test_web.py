@@ -230,3 +230,24 @@ def test_leftovers_are_listed_and_can_be_marked_ran_out(client, users_base):
     assert r.status_code == 303
     assert store.load_leftovers() == []
     assert "Leftovers we're counting on" not in client.get(url).text
+
+
+def test_leftovers_are_judged_on_the_next_shopping_day(client, users_base):
+    """Herbs that would wilt before next week's meals aren't shown as counted on."""
+    from datetime import date, timedelta
+
+    from mealplanner.grocery.leftovers import COOKING_WINDOW_DAYS, Batch
+    from mealplanner.jobs.common import next_weekday
+
+    config = load_user_config("test", users_base)
+    shop_day = next_weekday(date.today(), config.planning_day)
+    store = StateStore(user_dir("test", users_base))
+    store.save_leftovers([
+        # good today, gone before the next order's meals are cooked
+        Batch("mint", "Mint", 0.75, "bunch",
+              (shop_day + timedelta(days=COOKING_WINDOW_DAYS - 1)).isoformat()),
+        Batch("sriracha", "Sriracha", 33, "tbsp", "2099-01-01"),
+    ])
+    body = client.get(feedback_url("test", "", users_base)).text
+    section = body.split("Leftovers we're counting on")[1].split("Pantry staples")[0]
+    assert "Sriracha" in section and "Mint" not in section
