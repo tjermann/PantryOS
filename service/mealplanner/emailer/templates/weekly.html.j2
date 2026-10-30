@@ -23,7 +23,7 @@
   {% endif %}
 
   {% if shortlist %}
-  <h2 style="font-size: 18px; margin-top: 22px;">Dinner options — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }}</h2>
+  <h2 style="font-size: 18px; margin-top: 22px;">{% if shortlist.requested_ids %}Dinners — {{ shortlist.requested_ids|length }} you chose, plus pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }} options{% else %}Dinner options — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }}{% endif %}</h2>
   {% endif %}
   <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
     <tr style="text-align: left; border-bottom: 1px solid #ccc;">
@@ -31,7 +31,7 @@
     </tr>
     {% for e in entries %}
     <tr style="border-bottom: 1px solid #eee; vertical-align: top;">
-      <td style="padding: 6px 8px; white-space: nowrap;">{{ e.day }}{% if e.is_default %}<br><span style="color:#c96f4a; font-size:11px;">default</span>{% endif %}</td>
+      <td style="padding: 6px 8px; white-space: nowrap;">{{ e.day }}{% if e.is_default %}<br><span style="color:#c96f4a; font-size:11px;">default</span>{% endif %}{% if e.chosen %}<br><span style="color:#2e7d32; font-size:11px;">your pick</span>{% endif %}</td>
       <td style="padding: 6px 8px;"><strong>{% if e.url %}<a href="{{ e.url }}" style="color:#2b2b2b;">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</strong>
         {% if e.url %}<br><a href="{{ e.url }}" style="color:#c96f4a; font-size:12px;">recipe →</a>{% endif %}
         {% if e.source_label %}<br><span style="color:#999; font-size:12px;">from {% if e.source and e.source.startswith('http') %}<a href="{{ e.source }}" style="color:#999;">{{ e.source_label }}</a>{% else %}{{ e.source_label }}{% endif %}</span>{% endif %}

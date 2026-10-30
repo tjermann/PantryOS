@@ -157,11 +157,21 @@ def propose_plan(
     max_repairs: int = 2,
     revision_context: str | None = None,
     shortlist: tuple[int, int] | None = None,
+    already_chosen: list[Recipe] | None = None,
 ) -> PlanRunResult:
     candidate_map = {r.id: r for r in candidates}
     context = build_candidate_context(
         candidates, states, items, household, week_dates, learnings, lunches
     )
+    if already_chosen:
+        chosen = "; ".join(f"{r.title} ({r.protein}, {r.cuisine})" for r in already_chosen)
+        context += (
+            "\n\n[ALREADY CHOSEN] The household has already picked these dinners for "
+            f"this week — they are not candidates and must not be proposed: {chosen}. "
+            "Your dinners fill the remaining nights, so complement them: favor "
+            "proteins, cuisines and cooking methods they don't already cover, and "
+            "share perishables with them where it saves waste."
+        )
     if revision_context:
         context += (
             "\n\n[REVISION] You previously proposed the plan below and the household "

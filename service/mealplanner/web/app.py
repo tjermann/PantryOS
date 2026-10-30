@@ -106,6 +106,7 @@ def _picker_html(user: str, config, store, plan: dict, t: str | None,
 
     library = _library_index(user, config, base)
     chosen = set(plan.get("selected") or [])
+    asked = set(plan.get("requested") or [])
     s = _serializer(user, base)
     recipe_t = s.dumps({"u": user})
 
@@ -134,7 +135,9 @@ def _picker_html(user: str, config, store, plan: dict, t: str | None,
             f"<input type='checkbox' name='{field}' value=\"{esc(slug)}\""
             f"{' checked' if checked else ''} style='width:auto;margin-right:8px'>"
             f"<strong>{esc(title)}</strong>"
-            f"<div style='margin-left:24px;color:#777;font-size:12px;'>{' · '.join(bits)}</div>"
+            + (" <span style='color:#2e7d32;font-size:12px;'>your pick</span>"
+               if slug in asked else "")
+            + f"<div style='margin-left:24px;color:#777;font-size:12px;'>{' · '.join(bits)}</div>"
             f"<div style='margin-left:24px;font-size:13px;'>{esc(entry.get('rationale', ''))}</div>"
             f"<div style='margin-left:24px;'>"
             f"<a href='/r/{q(user)}/{q(slug)}?t={recipe_t}' style='font-size:12px;'>view recipe →</a>"

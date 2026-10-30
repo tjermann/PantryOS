@@ -19,7 +19,7 @@ from ..planning.variety import VarietyRules
 from ..recipes.merged import load_full_library
 from ..state.store import StateStore
 
-from .common import WEEKDAYS, next_week_dates  # noqa: E402  (shared with propose)
+from .common import WEEKDAYS, iso_week_of, next_week_dates  # noqa: E402  (shared with propose)
 
 
 def is_planning_day(config: UserConfig, today: date) -> bool:
@@ -55,6 +55,14 @@ def run_weekly(
 
     week_dates = next_week_dates(today, config.household.dinners_per_week, config.planning_day)
     result = None
+
+    # The week may already have been executed early ("load the cart now, not
+    # Sunday"). Running again would plan a fresh week over it and fill a
+    # second cart, so the scheduled run stands down.
+    existing = store.load_plan(iso_week_of(week_dates[0]))
+    if not force and existing is not None and existing.get("status") == "final":
+        print(f"[{user}] {iso_week_of(week_dates[0])} already executed; skipping")
+        return 0
 
     # Approval flow: if yesterday's proposal (possibly revised through the day)
     # is waiting, execute it instead of planning fresh.

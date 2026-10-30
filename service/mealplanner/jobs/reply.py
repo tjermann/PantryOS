@@ -87,8 +87,16 @@ def apply_reply(
                 "rationale": CARRY_RATIONALE, "person_handling": [],
                 "ingredients_on_hand": True,
             })
-    plan["selected"] = [*applied.dinners, *applied.carried, *applied.lunches]
-    plan["select_dinners"] = applied.dinner_count
+    # Dishes asked for ahead of time stay unless the reply names them itself:
+    # "we'll take 2 and 4" means two MORE, on top of what they already chose.
+    menu_ids = {e["recipe_id"] for e in plan["entries"]}
+    kept = [r for r in plan.get("requested") or []
+            if r in menu_ids and r not in applied.dinners]
+    plan["selected"] = [*kept, *applied.dinners, *applied.carried, *applied.lunches]
+    plan["select_dinners"] = min(
+        applied.dinner_count + len(kept),
+        sum(1 for e in plan["entries"] if (e.get("meal_type") or "dinner") == "dinner"),
+    )
     plan["select_lunches"] = applied.lunch_count
     # The week is settled now: don't let the iterate job re-plan over it.
     plan["fingerprint"] = store.feedback_fingerprint()

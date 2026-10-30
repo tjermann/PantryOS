@@ -115,6 +115,7 @@ def build_weekly_email_context(
         (lunches if e.meal_type == "lunch" else entries).append(
             {
                 "day": f"Make {day}" if e.meal_type == "lunch" else day,
+                "recipe_id": e.recipe_id,
                 "title": recipe.title,
                 "rationale": e.rationale,
                 "time_label": time_label,
@@ -130,9 +131,17 @@ def build_weekly_email_context(
     if shortlist:
         # A shortlist has no days yet — number the options instead, and flag the
         # ones that happen by default so "do nothing" has a visible outcome.
+        # Dishes the household asked for ahead of time aren't options at all.
+        asked = set(shortlist.get("requested_ids") or [])
+        chosen = [e for e in entries if e["recipe_id"] in asked]
+        entries = [e for e in entries if e["recipe_id"] not in asked]
+        for e in chosen:
+            e["day"] = "Chosen"
+            e["chosen"] = True
         for i, e in enumerate(entries):
             e["day"] = f"Option {i + 1}"
             e["is_default"] = i < shortlist.get("pick_dinners", 0)
+        entries = chosen + entries
         for i, e in enumerate(lunches):
             e["day"] = f"Option {i + 1}"
             e["is_default"] = i < shortlist.get("pick_lunches", 0)

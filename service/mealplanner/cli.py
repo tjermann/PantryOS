@@ -284,6 +284,38 @@ def rate(
 
 
 @app.command()
+def request(
+    user: str = typer.Option(...),
+    recipes: list[str] = typer.Argument(None, help="Titles, slugs or source URLs"),
+    dinners: int = typer.Option(None, "--dinners",
+                                help="Total dinners that week, requested ones included"),
+    week: str = typer.Option(None, "--week", help="ISO week, e.g. 2026-W43 (default: next)"),
+    clear: bool = typer.Option(False, "--clear"),
+):
+    """Lock dishes into next week's menu ahead of the proposal; the proposal then
+    offers options only for the nights that are left."""
+    from .jobs.common import iso_week_of, next_week_dates
+    from .state.store import StateStore
+
+    config = load_user_config(user)
+    week = week or iso_week_of(next_week_dates(date.today(), 1, config.planning_day)[0])
+    store = StateStore(user_dir(user))
+    if clear:
+        store.set_requests(week, [], 0)
+        typer.echo(f"{week}: requests cleared")
+        return
+    if not recipes:
+        typer.echo(f"{week}: {store.load_requests(week) or 'no requests'}")
+        return
+    slugs = [_resolve_slug(user, r) for r in recipes]
+    total = max(dinners or config.household.dinners_per_week, len(slugs))
+    store.set_requests(week, slugs, total)
+    typer.echo(f"{week}: {len(slugs)} locked in, options for {total - len(slugs)} more")
+    for slug in slugs:
+        typer.echo(f"  - {slug}")
+
+
+@app.command()
 def mark(
     user: str = typer.Option(...),
     recipe: str = typer.Argument(...),
@@ -636,6 +668,13 @@ def _resolve_slug(user: str, query: str) -> str:
 
     config = load_user_config(user)
     entries = load_full_library(user, config.recipe_library)
+    if query.startswith("http"):
+        url = query.split("?")[0].rstrip("/")
+        by_url = [e for e in entries if (e.source or "").split("?")[0].rstrip("/") == url]
+        if by_url:
+            return by_url[0].recipe.id
+        typer.echo(f"No recipe imported from {query} — run add-recipe first")
+        raise typer.Exit(1)
     q = slugify(query)
     exact = [e for e in entries if e.recipe.id == q]
     if exact:

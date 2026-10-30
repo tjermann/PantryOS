@@ -37,7 +37,9 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
         chosen = {
             e["recipe_id"] for e in resolve_selection(
                 {"entries": [e.model_dump() for e in entries],
-                 "week_dates": [d.isoformat() for d in week_dates]},
+                 "week_dates": [d.isoformat() for d in week_dates],
+                 "selected": shortlist.get("requested_ids") or None,
+                 "select_dinners": shortlist.get("select_dinners")},
                 config.household,
             )
         }
@@ -79,9 +81,15 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
     version = f" (v{iteration})" if iteration > 1 else ""
     shop_day = config.planning_day.capitalize()
     if shortlist:
+        asked = len(shortlist.get("requested_ids") or [])
+        locked = (
+            f"The {asked} dinner{'s' if asked != 1 else ''} you asked for "
+            f"{'are' if asked != 1 else 'is'} locked in. " if asked else ""
+        )
         note = (
-            f"PICK YOUR MEALS{version} — nothing has been ordered. Choose "
-            f"{shortlist['pick_dinners']} of the {shortlist['dinner_options']} dinners "
+            f"PICK YOUR MEALS{version} — nothing has been ordered. {locked}Choose "
+            f"{shortlist['pick_dinners']} of the {shortlist['dinner_options']} "
+            f"{'other ' if asked else ''}dinners "
             f"and {shortlist['pick_lunches']} of the {shortlist['lunch_options']} "
             f"lunches on the family page. You have until {shop_day} morning, when the "
             f"cart is filled from your picks — and not picking is fine: the first "
@@ -117,16 +125,74 @@ def _proposal_email(user, config, store, result, recipes_by_id, week_dates, base
     )
 
 
-def _shortlist_meta(household, result) -> dict:
+def _shortlist_meta(household, result, requested: list[str] | None = None,
+                    dinners: int | None = None) -> dict:
     """What the email and page need to explain the choice — counted from what
     the planner actually returned, not what we asked for."""
-    entries = result.proposal.entries
+    requested = requested or []
+    entries = [e for e in result.proposal.entries if e.recipe_id not in requested]
+    dinners = dinners or household.dinners_per_week
     return {
-        "pick_dinners": household.dinners_per_week,
+        "pick_dinners": max(dinners - len(requested), 0),
         "pick_lunches": household.lunches_per_week,
         "dinner_options": sum(1 for e in entries if e.meal_type != "lunch"),
         "lunch_options": sum(1 for e in entries if e.meal_type == "lunch"),
+        "requested_ids": requested,
+        "select_dinners": dinners,
     }
+
+
+def _plan_week(user, config, store, today, base, revision_context=None):
+    """Generate this week's proposal, honoring any dishes the household asked
+    for ahead of time ('we want these three — give us options for two more').
+
+    Returns (result, recipes_by_id, sources, week_dates, iso_week, requested,
+    dinners). Requested dishes lead the plan and are pre-selected; the planner
+    only fills the nights that are left."""
+    import math
+
+    from .common import requested_entries
+
+    household = config.household
+    first_night = next_week_dates(today, 1, config.planning_day)[0]
+    iso_week = iso_week_of(first_night)
+    request = store.load_requests(iso_week)
+    asked = list(request.get("recipes") or [])
+    dinners = int(request.get("dinners") or household.dinners_per_week)
+    if not asked:
+        week_dates = next_week_dates(today, dinners, config.planning_day)
+        option_dates = next_week_dates(today, household.shortlist_dinners,
+                                       config.planning_day)
+        result, recipes_by_id, sources = generate_plan(
+            user, config, store, option_dates, base, revision_context=revision_context,
+            shortlist=household.offers_choice,
+        )
+        return result, recipes_by_id, sources, week_dates, iso_week, [], dinners
+
+    dinners = max(dinners, len(asked))
+    week_dates = next_week_dates(today, dinners, config.planning_day)
+    open_nights = dinners - len(asked)
+    # Same choice ratio as a normal week (7 options for 4 nights -> 4 for 2),
+    # and the planner always gets at least one dinner slot to work with.
+    ratio = household.shortlist_dinners / max(household.dinners_per_week, 1)
+    n_options = max(1, math.ceil(open_nights * ratio))
+    option_dates = next_week_dates(today, n_options, config.planning_day)
+    result, recipes_by_id, sources = generate_plan(
+        user, config, store, option_dates, base, revision_context=revision_context,
+        shortlist=True, requested=asked, pick_dinners=open_nights,
+    )
+    fixed, refused = requested_entries(asked, recipes_by_id, household, week_dates)
+    for reason in refused:
+        print(f"[{user}] requested dish left off: {reason}")
+    requested = [e.recipe_id for e in fixed]
+    from dataclasses import replace
+
+    result = replace(result, proposal=result.proposal.model_copy(
+        update={"entries": [*fixed, *result.proposal.entries]}
+    ))
+    print(f"[{user}] {len(requested)} requested dinner(s) locked in; "
+          f"options for {dinners - len(requested)} more")
+    return result, recipes_by_id, sources, week_dates, iso_week, requested, dinners
 
 
 def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
@@ -142,21 +208,21 @@ def run_propose(user: str, *, base: Path | None = None, dry_run: bool = False,
     household = config.household
     # The shortlist is generated over more slots than the week has nights; the
     # real nights are stored separately and assigned once they pick.
-    week_dates = next_week_dates(today, household.dinners_per_week, config.planning_day)
-    option_dates = next_week_dates(today, household.shortlist_dinners, config.planning_day)
-    result, recipes_by_id, sources = generate_plan(
-        user, config, store, option_dates, base, shortlist=household.offers_choice
+    result, recipes_by_id, sources, week_dates, iso_week, requested, dinners = \
+        _plan_week(user, config, store, today, base)
+    shortlist = (
+        _shortlist_meta(household, result, requested, dinners)
+        if household.offers_choice or requested else None
     )
-    iso_week = iso_week_of(week_dates[0])
-    shortlist = _shortlist_meta(household, result) if household.offers_choice else None
     if not dry_run:
         store.save_plan(iso_week, plan_payload(
             result, iso_week, status="proposed", iteration=1,
             fingerprint=store.feedback_fingerprint(),
             week_dates=[d.isoformat() for d in week_dates],
-            select_dinners=household.dinners_per_week,
+            select_dinners=dinners,
             select_lunches=household.lunches_per_week,
-            selected=None,
+            selected=requested or None,
+            requested=requested,
         ))
     _proposal_email(user, config, store, result, recipes_by_id, week_dates, base, 1,
                     dry_run, sources, shortlist)
@@ -194,7 +260,8 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
     if current == plan.get("fingerprint"):
         print(f"[{user}] no new feedback; proposal stands")
         return 0
-    if plan.get("selected"):
+    requested = list(plan.get("requested") or [])
+    if set(plan.get("selected") or []) - set(requested):
         # Someone has already said what they want to eat. A machine-generated
         # revision must not overrule that: re-planning here would silently
         # replace chosen dinners, and any carried-over meal with food already
@@ -208,15 +275,16 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
     iteration = int(plan.get("iteration", 1)) + 1
     print(f"[{user}] new feedback — revising proposal (v{iteration})")
     household = config.household
-    week_dates = [date.fromisoformat(d) for d in plan.get("week_dates", [])] or \
-        next_week_dates(today, household.dinners_per_week, config.planning_day)
-    option_dates = next_week_dates(today, household.shortlist_dinners, config.planning_day)
     previous = json.dumps(plan.get("entries", []))
-    result, recipes_by_id, sources = generate_plan(
-        user, config, store, option_dates, base, revision_context=previous,
-        shortlist=household.offers_choice,
+    result, recipes_by_id, sources, week_dates, _, requested, dinners = \
+        _plan_week(user, config, store, today, base, revision_context=previous)
+    stored = [date.fromisoformat(d) for d in plan.get("week_dates", [])]
+    if len(stored) == len(week_dates):
+        week_dates = stored  # same nights the proposal already named
+    shortlist = (
+        _shortlist_meta(household, result, requested, dinners)
+        if household.offers_choice or requested else None
     )
-    shortlist = _shortlist_meta(household, result) if household.offers_choice else None
     # Meals whose groceries are already bought survive every revision — dropping
     # one would waste food that is sitting in the fridge.
     carried = [e for e in plan.get("entries", []) if e.get("ingredients_on_hand")]
@@ -227,9 +295,10 @@ def run_iterate(user: str, *, base: Path | None = None, dry_run: bool = False,
             result, iso_week, status="proposed", iteration=iteration,
             fingerprint=store.feedback_fingerprint(),
             week_dates=[d.isoformat() for d in week_dates],
-            select_dinners=plan.get("select_dinners") or household.dinners_per_week,
+            select_dinners=dinners,
             select_lunches=plan.get("select_lunches") or household.lunches_per_week,
-            selected=None,
+            selected=requested or None,
+            requested=requested,
         )
         payload["entries"] = payload["entries"] + carried
         store.save_plan(iso_week, payload)

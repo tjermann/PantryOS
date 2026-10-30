@@ -250,6 +250,26 @@ class StateStore:
         _atomic_write(path, yaml.safe_dump(data, sort_keys=True))
         return excluded
 
+    # -- requested meals ----------------------------------------------------
+    def load_requests(self, iso_week: str) -> dict[str, Any]:
+        """Dishes the household asked for ahead of the proposal ('we want these
+        three, give us options for two more'): {"recipes": [...], "dinners": n}."""
+        path = self.root / "requests.yaml"
+        if not path.exists():
+            return {}
+        return dict((yaml.safe_load(path.read_text()) or {}).get(iso_week) or {})
+
+    def set_requests(self, iso_week: str, recipes: list[str], dinners: int) -> None:
+        path = self.root / "requests.yaml"
+        data = (yaml.safe_load(path.read_text()) or {}) if path.exists() else {}
+        if recipes:
+            data[iso_week] = {"recipes": list(dict.fromkeys(recipes)), "dinners": dinners}
+        else:
+            data.pop(iso_week, None)
+        for old in sorted(data)[:-8]:
+            data.pop(old, None)
+        _atomic_write(path, yaml.safe_dump(data, sort_keys=True))
+
     # -- pantry staples -----------------------------------------------------
     def load_staples(self) -> list[str]:
         """Things assumed on hand (salt, olive oil, spices…): matching grocery

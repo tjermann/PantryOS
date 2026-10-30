@@ -10,9 +10,9 @@ START AHEAD:
 {% for note in long_lead_notes %}  ! {{ note }}
 {% endfor %}{% endif %}
 {% if shortlist %}
-DINNER OPTIONS — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }}
+{% if shortlist.requested_ids %}DINNERS — {{ shortlist.requested_ids|length }} you chose, plus pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }} options{% else %}DINNER OPTIONS — pick {{ shortlist.pick_dinners }} of {{ shortlist.dinner_options }}{% endif %}
 {% endif %}{% for e in entries %}
-{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.on_hand %} [already shopped for]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
+{{ e.day }}: {{ e.title }}{% if e.is_default %} [default]{% endif %}{% if e.chosen %} [your pick]{% endif %}{% if e.on_hand %} [already shopped for]{% endif %}{% if e.time_label %} ({{ e.time_label }}){% endif %}{% if e.source_label %} [from {{ e.source_label }}]{% endif %}
   {{ e.rationale }}
 {% if e.source and e.source.startswith('http') %}  Source: {{ e.source }}
 {% endif %}{% if e.url %}  Recipe: {{ e.url }}

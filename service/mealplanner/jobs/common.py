@@ -13,6 +13,7 @@ from ..planning.candidates import cap_candidates, filter_candidates
 from ..planning.variety import VarietyRules
 from ..recipes.merged import load_full_library
 from ..schemas.domain import Recipe
+from ..schemas.plan import PlanEntryProposal
 from ..state.store import StateStore
 
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -59,7 +60,13 @@ def generate_plan(
     base: Path | None = None,
     revision_context: str | None = None,
     shortlist: bool = False,
+    requested: list[str] | None = None,
+    pick_dinners: int | None = None,
 ) -> tuple[PlanRunResult, dict[str, Recipe], dict[str, str]]:
+    """`requested` dishes are already on the menu: they are kept out of the
+    candidate pool and shown to the planner so its options complement them.
+    `pick_dinners` is how many of the options the household still chooses."""
+    requested = requested or []
     items = load_ontology()
     from ..recipes.merged import apply_source_policy
 
@@ -74,7 +81,7 @@ def generate_plan(
     sources = {e.recipe.id: e.source for e in library if e.source}
     states = store.load_recipe_states()
     candidates, rejected = filter_candidates(
-        [e.recipe for e in library], states, config.household, week_dates[0].month,
+        [e.recipe for e in library if e.recipe.id not in requested], states, config.household, week_dates[0].month,
         today=week_dates[0], repeat_window_days=config.variety.repeat_window_days,
     )
     if not candidates:
@@ -108,13 +115,53 @@ def generate_plan(
         ),
         revision_context=revision_context,
         shortlist=(
-            (config.household.dinners_per_week, config.household.lunches_per_week)
+            (pick_dinners if pick_dinners is not None else config.household.dinners_per_week,
+             config.household.lunches_per_week)
             if shortlist else None
         ),
+        already_chosen=[recipes_by_id[r] for r in requested if r in recipes_by_id],
     )
     if result.dropped_recipe_ids:
         print(f"[{user}] dropped unrepairable entries: {result.dropped_recipe_ids}")
     return result, recipes_by_id, sources
+
+
+def requested_entries(
+    requested: list[str], recipes_by_id: dict[str, Recipe], household,
+    week_dates: list[date],
+) -> tuple[list[PlanEntryProposal], list[str]]:
+    """Plan entries for dishes the household asked for by name. They skip the
+    planner, not the allergen backstop: anything it objects to is refused."""
+    from ..allergen.backstop import run_allergen_backstop
+
+    items = load_ontology()
+    entries: list[PlanEntryProposal] = []
+    refused: list[str] = []
+    for i, slug in enumerate(requested):
+        recipe = recipes_by_id.get(slug)
+        if recipe is None:
+            refused.append(f"{slug}: not in the recipe library")
+            continue
+        entry = PlanEntryProposal(
+            recipe_id=slug,
+            date=week_dates[min(i, len(week_dates) - 1)].isoformat(),
+            servings=recipe.serves,
+            rationale=REQUESTED_RATIONALE,
+        )
+        errors = [
+            v for v in run_allergen_backstop(
+                entry=entry, entry_index=i, recipe=recipe, people=household.people,
+                restrictions=household.restrictions, items=items,
+            ) if v.severity == "error"
+        ]
+        if errors:
+            refused.append(f"{recipe.title}: {errors[0].message}")
+            continue
+        entries.append(entry)
+    return entries, refused
+
+
+REQUESTED_RATIONALE = "You asked for this one — it's on the menu."
 
 
 def plan_payload(result: PlanRunResult, iso_week: str, **extra) -> dict:
